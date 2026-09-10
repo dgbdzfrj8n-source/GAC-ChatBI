@@ -55,6 +55,16 @@ app.add_middleware(
 nl2sql_engine = Nl2SqlEngine()
 chart_recommender = ChartRecommender()
 
+# Render 平台健康检查端点（默认 GET /，不依赖业务初始化）
+@app.get("/", tags=["基础监控"])
+def root():
+    return {
+        "status": "ok",
+        "service": "GAC-ChatBI API",
+        "version": "1.0.0",
+        "endpoints": ["/api/health", "/api/metrics", "/api/chat", "/api/feedback", "/docs"]
+    }
+
 @app.get("/api/health", tags=["基础监控"])
 def health_check():
     """健康检查与引擎探测"""
