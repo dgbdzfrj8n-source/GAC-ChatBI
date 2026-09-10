@@ -1,0 +1,68 @@
+{
+  "version": "1.0.0",
+  "domain_group": "广汽集团经营分析体系",
+  "metrics": [
+    {
+      "metric_id": "M01",
+      "metric_name": "销售达成率",
+      "business_domain": "整车销售",
+      "definition": "统计周期内实际交付整车数量占同期预算目标交付量的比例。注意：fact_sales_daily 为日/车型粒度，dim_budget_target 为月度粒度，直接 JOIN 会产生 1:N 扇出，计算必须先使用 CTE 对事实表按月聚合再关联。",
+      "unit": "%",
+      "calculation_rule": "ROUND(s_agg.actual_units * 100.0 / NULLIF(b.target_units, 0), 2)",
+      "required_tables": ["fact_sales_daily", "dim_budget_target"],
+      "join_condition": "s_agg.brand_name = b.brand_name AND s_agg.year_month = b.year_month",
+      "example_query": "WITH s_agg AS (SELECT brand_name, STRFTIME('%Y-%m', sale_date) AS year_month, SUM(delivered_units) AS actual_units FROM fact_sales_daily WHERE STRFTIME('%Y-%m', sale_date) = '2025-03' GROUP BY brand_name, year_month) SELECT s_agg.brand_name, s_agg.actual_units, b.target_units, ROUND(s_agg.actual_units * 100.0 / NULLIF(b.target_units, 0), 2) AS fulfillment_rate FROM s_agg JOIN dim_budget_target b ON s_agg.brand_name = b.brand_name AND s_agg.year_month = b.year_month"
+    },
+    {
+      "metric_id": "M02",
+      "metric_name": "总交付量",
+      "business_domain": "整车销售",
+      "definition": "统计周期内最终交付给终端消费者的整车数量合计。",
+      "unit": "辆",
+      "calculation_rule": "SUM(delivered_units)",
+      "required_tables": ["fact_sales_daily"],
+      "example_query": "SELECT model_name, SUM(delivered_units) AS total_units FROM fact_sales_daily WHERE sale_date >= '2025-01-01' GROUP BY model_name ORDER BY total_units DESC"
+    },
+    {
+      "metric_id": "M03",
+      "metric_name": "单车成交均价",
+      "business_domain": "整车销售",
+      "definition": "整车开票总营收与交付总量的比值，反映产品结构与价格稳定性。",
+      "unit": "元/辆",
+      "calculation_rule": "ROUND(SUM(gross_revenue) * 1.0 / NULLIF(SUM(delivered_units), 0), 2)",
+      "required_tables": ["fact_sales_daily"],
+      "example_query": "SELECT brand_name, ROUND(SUM(gross_revenue) * 1.0 / NULLIF(SUM(delivered_units), 0), 2) AS avg_price FROM fact_sales_daily GROUP BY brand_name"
+    },
+    {
+      "metric_id": "M04",
+      "metric_name": "单车营销费用",
+      "business_domain": "经营财务",
+      "definition": "统计周期内营销投放总支出与交付总量的比值，衡量市场获客与促销投入的综合产出效率。两表粒度不同，必须分别按维度聚合后再 JOIN 计算比值。",
+      "unit": "元/辆",
+      "calculation_rule": "ROUND(m_agg.total_expense * 1.0 / NULLIF(s_agg.total_units, 0), 2)",
+      "required_tables": ["fact_marketing_expenses", "fact_sales_daily"],
+      "join_condition": "m_agg.brand_name = s_agg.brand_name",
+      "example_query": "WITH m_agg AS (SELECT brand_name, SUM(expense_amount) AS total_expense FROM fact_marketing_expenses WHERE expense_date >= '2025-01-01' GROUP BY brand_name), s_agg AS (SELECT brand_name, SUM(delivered_units) AS total_units FROM fact_sales_daily WHERE sale_date >= '2025-01-01' GROUP BY brand_name) SELECT m_agg.brand_name, ROUND(m_agg.total_expense * 1.0 / NULLIF(s_agg.total_units, 0), 2) AS marketing_cost_per_car FROM m_agg JOIN s_agg ON m_agg.brand_name = s_agg.brand_name"
+    },
+    {
+      "metric_id": "M05",
+      "metric_name": "单渠道获客成本(CPL)",
+      "business_domain": "市场营销",
+      "definition": "特定推广渠道投放支出与所带来留资线索总量的比值，评估渠道采买效率。",
+      "unit": "元/条",
+      "calculation_rule": "ROUND(SUM(expense_amount) * 1.0 / NULLIF(SUM(leads_generated), 0), 2)",
+      "required_tables": ["fact_marketing_expenses"],
+      "example_query": "SELECT channel_name, ROUND(SUM(expense_amount) * 1.0 / NULLIF(SUM(leads_generated), 0), 2) AS cpl FROM fact_marketing_expenses GROUP BY channel_name ORDER BY cpl ASC"
+    },
+    {
+      "metric_id": "M06",
+      "metric_name": "客流成交转化率",
+      "business_domain": "渠道经营",
+      "definition": "实际交付量与进店意向客流量的比值，衡量终端门店的客流接待与成交转化效率。",
+      "unit": "%",
+      "calculation_rule": "ROUND(SUM(delivered_units) * 100.0 / NULLIF(SUM(customer_leads), 0), 2)",
+      "required_tables": ["fact_sales_daily"],
+      "example_query": "SELECT region_name, ROUND(SUM(delivered_units) * 100.0 / NULLIF(SUM(customer_leads), 0), 2) AS conversion_rate FROM fact_sales_daily GROUP BY region_name ORDER BY conversion_rate DESC"
+    }
+  ]
+}

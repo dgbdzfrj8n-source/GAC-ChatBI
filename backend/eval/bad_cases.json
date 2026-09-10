@@ -1,0 +1,23 @@
+[
+  {
+    "timestamp": "2026-09-09T23:45:34.915386",
+    "query": "测试提问",
+    "sql": "SELECT 1",
+    "feedback_type": "图表不适配",
+    "user_comment": "建议使用双轴图"
+  },
+  {
+    "timestamp": "2026-09-10T00:04:23.213127",
+    "query": "测试提问",
+    "sql": "SELECT 1",
+    "feedback_type": "图表不适配",
+    "user_comment": "建议使用双轴图"
+  },
+  {
+    "timestamp": "2026-09-10T12:06:10.613956",
+    "query": "测试提问",
+    "sql": "SELECT 1",
+    "feedback_type": "图表不适配",
+    "user_comment": "建议使用双轴图"
+  }
+]

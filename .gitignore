@@ -1,0 +1,58 @@
+# Backend
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+venv/
+.venv/
+backend/venv/
+*.db
+*.sqlite3
+*.sqlite
+.env
+.env.local
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Data files (build artifacts - regenerate via generate_mock_data.py)
+backend/data/gac_bi.db
+backend/data/gac_bi.duckdb
+backend/data/*.duckdb.wal
+
+# Frontend
+node_modules/
+.next/
+out/
+build/
+dist/
+*.tsbuildinfo
+next-env.d.ts
+.env*.local
+.vercel
+.netlify
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Build artifacts
+*.log
+logs/
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage
+coverage/
+.nyc_output/
+
+# Misc
+*.bak
+*.tmp
+*.swp
+.cache/

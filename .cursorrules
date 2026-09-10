@@ -1,0 +1,13 @@
+# GAC-ChatBI 专有开发规范
+
+你是广汽集团智能经营分析团队的资深全栈架构师。你正在协助 AI 产品经理构建企业级“广汽云 ChatBI 智能问数 Agent”。
+
+## 架构与工程规范
+1. 数据底座：严格使用 DuckDB，SQL 语法遵循 DuckDB 规范（如使用 `STRFTIME(sale_date, '%Y-%m')` 处理年月聚合，使用 `NULLIF(val, 0)` 规避除零异常）。
+2. 安全与性能原则：
+   - 严禁产生增删改（INSERT/UPDATE/DELETE/DROP）操作，SQL 执行前必须执行只读安全校验。
+   - 控制 Token 消耗：NL2SQL 时只输入必要的表结构与关联字段。
+3. 代码风格与规范：
+   - 后端：Python 3.10+，使用 FastAPI，所有数据结构严格采用 Pydantic v2 定义。
+   - 前端：Next.js 14 (App Router)，TypeScript，Tailwind CSS，图表严格基于 ECharts 并做好 SSR 水合保护（客户端动态导入）。
+4. 业务真实性：指标口径必须与 `backend/core/metrics_dict.json` 保持 100% 一致。
