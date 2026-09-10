@@ -7,13 +7,21 @@
 """
 
 import os
+import sys
+
+# Render/Docker 部署兼容：把 backend 目录注入到 sys.path
+_CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+_BACKEND_DIR = os.path.dirname(_CURRENT_DIR)
+if _BACKEND_DIR not in sys.path:
+    sys.path.insert(0, _BACKEND_DIR)
+
 import json
 import datetime
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse
 
-from backend.core.nl2sql_engine import Nl2SqlEngine
-from backend.core.chart_recommender import ChartRecommender
+from core.nl2sql_engine import Nl2SqlEngine
+from core.chart_recommender import ChartRecommender
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 BACKEND_DIR = os.path.dirname(CURRENT_DIR)
@@ -141,15 +149,18 @@ class GacBiHttpHandler(BaseHTTPRequestHandler):
         # 简化日志输出
         pass
 
-def run_server(port=8000):
+def run_server(port=None):
+    # 兼容 Render/Heroku 等平台通过环境变量注入的 PORT
+    if port is None:
+        port = int(os.environ.get("PORT", 8000))
     server = HTTPServer(("0.0.0.0", port), GacBiHttpHandler)
-    print(f"🚀 [广汽云 ChatBI 智能服务已启动] 监听端口: http://127.0.0.1:{port}")
+    print(f"🚀 [广汽云 ChatBI 智能服务已启动] 监听端口: http://0.0.0.0:{port}")
     print("可用接口:")
-    print(f"  • GET  http://127.0.0.1:{port}/api/health")
-    print(f"  • GET  http://127.0.0.1:{port}/api/metrics")
-    print(f"  • POST http://127.0.0.1:{port}/api/chat")
-    print(f"  • POST http://127.0.0.1:{port}/api/feedback")
+    print(f"  • GET  http://0.0.0.0:{port}/api/health")
+    print(f"  • GET  http://0.0.0.0:{port}/api/metrics")
+    print(f"  • POST http://0.0.0.0:{port}/api/chat")
+    print(f"  • POST http://0.0.0.0:{port}/api/feedback")
     server.serve_forever()
 
 if __name__ == "__main__":
-    run_server(8000)
+    run_server()

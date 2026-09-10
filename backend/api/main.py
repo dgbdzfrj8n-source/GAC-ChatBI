@@ -8,18 +8,27 @@
 """
 
 import os
+import sys
+
+# Render/Docker 部署兼容：无论 Root Directory 是仓库根目录还是 backend，
+# 都把 backend 目录注入到 sys.path，让相对导入 `from api.xxx` 生效
+_CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+_BACKEND_DIR = os.path.dirname(_CURRENT_DIR)
+if _BACKEND_DIR not in sys.path:
+    sys.path.insert(0, _BACKEND_DIR)
+
 import json
 import datetime
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from backend.api.schemas import (
+from api.schemas import (
     ChatQueryRequest,
     ChatQueryResponse,
     MetricListResponse,
     BadCaseFeedbackRequest
 )
-from backend.core.nl2sql_engine import Nl2SqlEngine
-from backend.core.chart_recommender import ChartRecommender
+from core.nl2sql_engine import Nl2SqlEngine
+from core.chart_recommender import ChartRecommender
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 BACKEND_DIR = os.path.dirname(CURRENT_DIR)
@@ -130,4 +139,4 @@ def collect_bad_case(req: BadCaseFeedbackRequest):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("backend.api.main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("api.main:app", host="0.0.0.0", port=8000, reload=True)

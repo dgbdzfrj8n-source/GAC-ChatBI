@@ -7,19 +7,15 @@ __pycache__/
 venv/
 .venv/
 backend/venv/
-*.db
-*.sqlite3
-*.sqlite
 .env
 .env.local
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
 
-# Data files (build artifacts - regenerate via generate_mock_data.py)
-backend/data/gac_bi.db
-backend/data/gac_bi.duckdb
-backend/data/*.duckdb.wal
+# NOTE: backend/data/gac_bi.duckdb and gac_bi.db are INTENTIONALLY tracked
+# in Git so that Render (ephemeral container) can use them without regenerating.
+# See backend/data/generate_mock_data.py for regeneration instructions.
 
 # Frontend
 node_modules/
