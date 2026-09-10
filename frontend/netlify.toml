@@ -3,7 +3,5 @@
   publish = ".next"
   command = "npm run build"
 
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
+# Next.js App Router 不需要 SPA fallback 兜底
+# 因为每个路由在构建时都会生成对应的 .html
