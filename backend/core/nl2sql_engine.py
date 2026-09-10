@@ -11,9 +11,9 @@ import os
 import re
 import json
 from typing import Dict, Any, List, Optional
-from backend.core.schema_linker import SchemaLinker
-from backend.core.sql_executor import SqlExecutor
-from backend.core.prompt_templates import (
+from core.schema_linker import SchemaLinker
+from core.sql_executor import SqlExecutor
+from core.prompt_templates import (
     SYSTEM_PROMPT,
     build_nl2sql_prompt,
     build_self_healing_prompt

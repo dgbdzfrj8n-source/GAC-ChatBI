@@ -16,8 +16,8 @@ SOP 流程：
 import os
 import re
 from typing import Dict, Any, List, Optional
-from backend.core.sql_executor import SqlExecutor
-from backend.core.metrics_dict import load_metrics
+from core.sql_executor import SqlExecutor
+from core.metrics_dict import load_metrics
 
 
 class SopAnalyzer:
