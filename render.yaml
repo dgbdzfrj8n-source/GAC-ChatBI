@@ -1,0 +1,42 @@
+# GAC-ChatBI Render 双服务部署声明（Infrastructure as Code）
+# 使用方式：Render 控制台 → New + → Blueprint → 关联此文件所在仓库
+
+services:
+  # ─── 后端：FastAPI Web Service ─────────────────────────────
+  - type: web
+    name: gac-chatbi-api
+    runtime: python
+    rootDir: backend
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn api.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      - key: LLM_API_KEY
+        sync: false   # 需在 Render Dashboard 手动填入
+      - key: LLM_BASE_URL
+        value: "https://api.deepseek.com/v1"
+      - key: PYTHONPATH
+        value: "/opt/render/project/src/backend"
+      # 注入前端 URL 给后端 CORS 用
+      - key: FRONTEND_URL
+        value: "https://gac-chatbi-frontend.onrender.com"
+
+  # ─── 前端：Next.js Static Site ────────────────────────────
+  - type: web
+    name: gac-chatbi-frontend
+    runtime: static
+    rootDir: frontend
+    plan: free
+    buildCommand: npm install && npm run build && npm run export
+    publishDir: out
+    autoDeploy: true
+    envVars:
+      - key: NEXT_PUBLIC_API_URL
+        fromService:
+          type: web
+          name: gac-chatbi-api
+          property: hosturl

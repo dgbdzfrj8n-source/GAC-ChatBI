@@ -49,3 +49,31 @@ class BadCaseFeedbackRequest(BaseModel):
     sql: Optional[str] = Field(None, description="有问题的 SQL")
     feedback_type: str = Field(..., description="问题类型：口径不准 | SQL报错 | 图表不适配 | 数据缺失")
     user_comment: Optional[str] = Field("", description="业务用户填写的补充说明")
+
+
+# --- 4. SOP 高频归因引擎契约 ---
+class SopAnalysisRequest(BaseModel):
+    """Sprint 5.3 SOP 归因引擎入参"""
+    brand_name: str = Field(..., description="品牌名称（如 广汽埃安/广汽传祺/昊铂）")
+    year_month: str = Field(..., description="分析月份 YYYY-MM，如 2025-03")
+    threshold_pct: Optional[float] = Field(95.0, ge=0, le=200, description="达成率预警阈值，默认 95%")
+
+class SopStepInfo(BaseModel):
+    step: int
+    step_name: str
+    status: str
+    content: Dict[str, Any] = Field(default_factory=dict, description="该步骤原始数据")
+
+class SopAnalysisResponse(BaseModel):
+    """Sprint 5.3 SOP 归因引擎出参：四步下钻 + 高管摘要"""
+    success: bool
+    brand: str
+    year_month: str
+    fulfillment_rate_pct: float
+    gap_units: int
+    gap_grade: str
+    gap_reason: str
+    steps: List[Dict[str, Any]] = Field(..., description="四步下钻完整明细")
+    recommendations: List[Dict[str, Any]] = Field(default_factory=list, description="可执行策略清单")
+    executive_summary: str = Field(..., description="高管可读的归因摘要")
+    execution_time_ms: float = 0.0

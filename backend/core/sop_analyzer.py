@@ -54,6 +54,9 @@ class SopAnalyzer:
 
         # ─── 第 1 步：大盘对标 ───────────────────────────────────────
         gap_report = self._step1_brand_gap(brand_name, year_month)
+        # 注入 brand/year_month 上下文供下游步骤使用
+        gap_report["brand"] = brand_name
+        gap_report["year_month"] = year_month
         steps.append(gap_report)
 
         # 第 2 步：维度下钻（若大盘未达标）

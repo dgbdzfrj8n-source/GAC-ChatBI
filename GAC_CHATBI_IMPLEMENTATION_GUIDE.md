@@ -15,8 +15,10 @@
 5. [Sprint 2：图表自适应推荐与 FastAPI 流式服务](#五sprint-2图表自适应推荐与-fastapi-流式服务)
 6. [Sprint 3：前端交互系统构建（对标 saas-chaibi）](#六sprint-3前端交互系统构建对标-saas-chaibi)
 7. [Sprint 4：高频归因 SOP 引擎与工业级评测体系](#七sprint-4高频归因-sop-引擎与工业级评测体系)
-8. [极简/零成本上线部署手册（Netlify + Render + DuckDB）](#八极简零成本上线部署手册netlify--render--duckdb)
+8. [极简/零成本上线部署手册（Render Static Site + Render Web Service + DuckDB）](#八极简零成本上线部署手册render-static-site--render-web-service--duckdb)
 9. [Cursor AI Coding 复制即用 Prompt 指南](#九cursor-ai-coding-复制即用-prompt-指南)
+10. [Sprint 5：差距补齐冲刺（5 个未交付能力落地）](#十sprint-5差距补齐冲刺5-个未交付能力落地)
+11. [Sprint 6 路线图与三阶段验收 Checklist](#十一sprint-6-路线图与三阶段验收-checklist)
 
 ---
 
@@ -302,10 +304,13 @@ class ChatResponse(BaseModel):
     summary_insight: str = Field(..., description="基于数据的经营分析师核心洞察与预警")
 ```
 
-### 5.3 FastAPI 流式服务端 (`backend/api/main.py`)
-暴露两大核心终端点：
+### 5.3 FastAPI 服务端 (`backend/api/main.py`)
+暴露核心终端点（详见第十章 Sprint 5 补齐计划）：
 1. `GET /api/metrics`：获取指标体系字典（供前端侧边栏树状渲染展示）。
-2. `POST /api/chat`：支持标准 JSON 响应与 SSE（Server-Sent Events）流式响应。
+2. `POST /api/chat`：支持标准 JSON 响应。**SSE 流式响应待 Sprint 5.1 补齐。**
+3. `POST /api/feedback`：Bad Case 反馈入库（已实现）。
+4. `GET /api/health`：服务与 DB 健康检查（已实现）。
+5. `POST /api/sop/analyze`：**待 Sprint 5.3 补齐** — 高频归因 SOP 引擎入口。
 
 ---
 
@@ -361,7 +366,9 @@ class ChatResponse(BaseModel):
 
 ## 七、Sprint 4：高频归因 SOP 引擎与工业级评测体系
 
-### 7.1 汽车销量达成异常归因 SOP 引擎 (`backend/core/sop_analyzer.py`)
+### 7.1 汽车销量达成异常归因 SOP 引擎 (`backend/core/sop_analyzer.py`) ✅ 已实现但孤立
+
+> **状态说明**：代码已完整实现四步下钻 SOP（含 `_step1_brand_gap` / `_step2_drill_down` / `_step3_cross_domain` / `_step4_recommendations`），**但当前未被任何 API 路由消费，是孤立模块**。Sprint 5.3 将打通 `/api/sop/analyze` 端点并接入前端。
 
 传统 ChatBI 只能查出“AION Y 3月未达标”，本项目的高级能力是自动执行四步下钻 SOP：
 
@@ -378,14 +385,11 @@ class ChatResponse(BaseModel):
 【第 4 步：策略建议】 建议针对华东区 AION Y 专项下沉商圈巡展，短期置换补贴追加 3,000 元/台。
 ```
 
-### 7.2 自动化评测跑分体系 (`backend/eval/run_eval.py`)
+### 7.2 自动化评测跑分体系 (`backend/eval/run_eval.py`) ⚠️ 待 Sprint 5.4 实现
 
-准备 50 道覆盖各种复杂场景的问题测试集 (`eval_dataset.json`)：
-* **单表基础聚合**（15 题）
-* **跨表关联与口径计算**（15 题）
-* **时间/范围模糊问答**（10 题）
-* **越界攻击/非只读提问拦截**（5 题）
-* **归因综合推演**（5 题）
+**评测数据集现状**：✅ `backend/eval/eval_dataset.json` 已落地 **100+ 条**评测用例（覆盖单表/跨表/时间/越界/归因五大类）。
+
+**评测执行脚本现状**：❌ `run_eval.py` **当前不存在**，Sprint 5.4 将落地。
 
 #### 评测执行与打分标准：
 ```bash
@@ -399,70 +403,51 @@ python backend/eval/run_eval.py
 
 ---
 
-## 八、极简/零成本上线部署手册（Netlify + Render + DuckDB）
+## 八、极简/零成本上线部署手册（Render Static Site + Render Web Service + DuckDB）
 
-这是全行业最具性价比、最不容易翻车的个人实战项目部署拓扑：
+> **状态说明**：✅ **当前实际部署架构**——前端用 Render Static Site（直接 serve `.next` 静态产物），后端用 Render Web Service（Python 环境），DuckDB 数据文件随仓库一并部署。**不需要 Dockerfile，不需要 Netlify**。
 
 ```
-                 [ GitHub 仓库 (代码 + 预生成 DuckDB 数据) ]
+                 [ GitHub 仓库 (代码 + 预生成 DuckDB 数据文件 backend/data/gac_bi.duckdb) ]
                                       │
                      ┌────────────────┴────────────────┐
                      ▼                                 ▼
-             [ Netlify 平台 ]                  [ Render / Railway ]
-         (构建目录: frontend)                 (构建环境: Dockerfile)
+        [ Render Static Site ]              [ Render Web Service ]
+        (根目录: frontend)                   (根目录: backend)
+        (publish: .next via next export)    (构建命令: pip install + start uvicorn)
                  │                                     │
                  ▼                                     ▼
         前端 Web 公网访问                     后端 FastAPI 接口服务
-    https://gac-chatbi.netlify.app         https://gac-api.onrender.com
+    https://gac-chatbi-frontend.onrender.com   https://gac-chatbi.onrender.com
 ```
 
-### 8.1 第一步：准备后端 Dockerfile (`backend/Dockerfile`)
+### 8.1 第一步：准备后端环境变量（无需 Dockerfile）
+Render 自动识别 `backend/requirements.txt`，环境变量直接在 Render Web Service 控制台配置：
+* `LLM_API_KEY`：你的 DeepSeek 或 通义千问 API Key。
+* `LLM_BASE_URL`：`https://api.deepseek.com/v1`（或其他 OpenAI 兼容地址）。
+* `PYTHONUNBUFFERED=1`：保证日志实时输出。
 
-```dockerfile
-FROM python:3.10-slim
-
-WORKDIR /app
-
-# 安装必要依赖
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-# 复制代码与数据文件
-COPY . /app/backend
-
-ENV PYTHONPATH=/app
-
-EXPOSE 8000
-
-CMD ["uvicorn", "backend.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+启动命令：
+```bash
+uvicorn backend.api.main:app --host 0.0.0.0 --port $PORT
 ```
 
 ### 8.2 第二步：部署后端到 Render (完全免费)
 1. 将项目推送到 GitHub。
 2. 登录 [Render.com](https://render.com)，选择 **New + ➔ Web Service**。
-3. 关联你的 GitHub 仓库，选择 **Docker** 环境，Root Directory 填 `backend`。
-4. 在 Environment Variables 中添加：
-   * `LLM_API_KEY`：你的 DeepSeek 或 通义千问 API Key。
-   * `LLM_BASE_URL`：`https://api.deepseek.com/v1`（或其他 OpenAI 兼容地址）。
+3. 关联你的 GitHub 仓库，Root Directory 填 `backend`，Environment 选 **Python 3**。
+4. 在 Environment Variables 中添加上述变量。
 5. 点击 **Create Web Service**。部署成功后获取公网 API 地址：`https://xxxx.onrender.com`。
 
-### 8.3 第三步：配置前端 Netlify 构建规则 (`frontend/netlify.toml`)
+### 8.3 第三步：配置前端 Render Static Site 构建规则
+1. Render 控制台选择 **New + ➔ Static Site**。
+2. 关联同一 GitHub 仓库，Root Directory 填 `frontend`。
+3. Build Command：`npm install && npm run build`。
+4. Publish Directory：`.next`（或经 next.config.js 调整后的产物目录）。
+5. 添加环境变量：`NEXT_PUBLIC_API_URL=https://xxxx.onrender.com`（即后端地址）。
+6. 一键 Deploy，即可生成专属域名（如 `https://gac-chatbi-frontend.onrender.com`）。
 
-```toml
-[build]
-  base = "frontend"
-  publish = ".next"
-  command = "npm run build"
-
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
-```
-
-* 在 Netlify 后台添加环境变量：
-  `NEXT_PUBLIC_API_URL=https://xxxx.onrender.com`
-* 一键绑定 GitHub 仓库，即可生成专属域名（如 `https://gac-chatbi.netlify.app`）。
+> **Next.js 静态导出要点**：`next.config.js` 中需设置 `output: "export"`（或保持默认但确保 Build 不报错），且 ECharts 组件必须用 `dynamic(() => import(...), { ssr: false })` 包裹，避免 SSR 水合冲突。
 
 ### 8.4 第四步：离线演示防翻车设计（Mock Fallback）
 在 `frontend/src/app/page.tsx` 中置入开关：
@@ -498,4 +483,442 @@ CMD ["uvicorn", "backend.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
 
 ---
 
-*这份手册已完整落实在本工作区，你随时可以调阅，并以此驱动 Cursor 逐个模块敏捷实现！*
+## 十、Sprint 5：差距补齐冲刺（5 个未交付能力落地）
+
+> **Sprint 5 总目标**：在 5 个工作日内把简历里承诺但 Demo 尚未完整暴露的能力全部落地，让"功能列表 ↔ 简历描述 ↔ 实际 Demo"三方对齐。每个子任务独立可演示，可任意组合上线。
+
+### 5.1 ⚡ SSE 流式响应（首字延迟从 2s → 600ms）
+
+**价值**：简历承诺"首字返回时间（TTFT）600ms 内的流式体验"。当前 `POST /api/chat` 是单次 JSON 返回，前端要干等 LLM 全跑完才能渲染。
+
+#### 后端改造（`backend/api/main.py` + `backend/services/streaming.py`）
+
+```python
+# 新增 backend/services/streaming.py
+from fastapi.responses import StreamingResponse
+import json, asyncio
+
+async def stream_chat_response(query: str, force_mock: bool = False):
+    """SSE 流式输出三阶段：思考链 → SQL → 数据+图表+洞察"""
+    yield f"event: thought\ndata: {json.dumps({'step': 1, 'text': '🔍 意图识别：归因分析'}, ensure_ascii=False)}\n\n"
+    await asyncio.sleep(0.05)
+
+    yield f"event: thought\ndata: {json.dumps({'step': 2, 'text': '📊 Schema 剪枝：关联 3 张业务表'}, ensure_ascii=False)}\n\n"
+    await asyncio.sleep(0.05)
+
+    yield f"event: sql\ndata: {json.dumps({'sql': 'SELECT ...'}, ensure_ascii=False)}\n\n"
+
+    result = engine.ask(query, force_mock=force_mock)
+
+    yield f"event: data\ndata: {json.dumps({'data': result['data'], 'columns': result['columns']}, ensure_ascii=False)}\n\n"
+
+    yield f"event: chart\ndata: {json.dumps({'echarts_option': result['echarts_option']}, ensure_ascii=False)}\n\n"
+
+    for chunk in result['summary_insight']:
+        yield f"event: insight\ndata: {json.dumps({'text': chunk}, ensure_ascii=False)}\n\n"
+        await asyncio.sleep(0.02)
+
+    yield f"event: done\ndata: {json.dumps({'execution_time_ms': result['execution_time_ms']})}\n\n"
+```
+
+```python
+# backend/api/main.py 新增端点
+@app.post("/api/chat/stream")
+async def chat_stream(req: ChatQueryRequest):
+    return StreamingResponse(
+        stream_chat_response(req.query, req.force_mock),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
+    )
+```
+
+#### 前端改造（`frontend/src/app/page.tsx` + `frontend/src/lib/sse.ts`）
+
+```typescript
+// frontend/src/lib/sse.ts
+export async function* streamChat(query: string) {
+  const res = await fetch(`${API_URL}/api/chat/stream`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ query, force_mock: false })
+  });
+  const reader = res.body!.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n\n");
+    buffer = lines.pop() || "";
+    for (const line of lines) {
+      const eventMatch = line.match(/^event: (.+)\ndata: (.+)$/);
+      if (eventMatch) yield { event: eventMatch[1], data: JSON.parse(eventMatch[2]) };
+    }
+  }
+}
+```
+
+#### 验收
+
+| 指标 | 目标 | 实测 |
+|------|------|------|
+| 首字延迟（TTFT） | < 600ms | curl + time 测 |
+| 流式事件类型 | 5 类（thought/sql/data/chart/insight）| Swagger UI 测试 |
+| 取消连接支持 | 浏览器 abort 时后端停推 | 测试 abort 后日志 |
+
+---
+
+### 5.2 🚗 管理驾驶舱大屏（`/dashboard` 路由）
+
+**价值**：简历承诺"自动生成分析报告并推送至管理驾驶舱大屏"。当前完全没有 dashboard 页面。
+
+#### 实现路径
+
+```text
+frontend/src/app/dashboard/
+├── page.tsx                  # 大屏主页（KPI 卡片 + 趋势图）
+├── components/
+│   ├── KpiCard.tsx           # 单指标卡片（达成率/总交付/营收/CPL）
+│   ├── TrendChart.tsx        # 双轴折线图（近 12 月走势）
+│   ├── BrandRanking.tsx      # 品牌达成率排名柱状图
+│   └── AlertFeed.tsx         # 异常预警列表（来自 SOP 分析）
+└── lib/
+    └── dashboardData.ts      # 聚合 4 个查询的客户端 hook
+```
+
+#### 数据来源（4 个并行 fetch）
+
+```typescript
+// frontend/src/app/dashboard/lib/dashboardData.ts
+export async function fetchDashboardData() {
+  const [kpis, trend, ranking, alerts] = await Promise.all([
+    fetch(`${API_URL}/api/chat`, { method: "POST", body: JSON.stringify({
+      query: "本月集团整体销售达成率、总交付量、总营收、平均CPL" }) }).then(r => r.json()),
+    fetch(`${API_URL}/api/chat`, { method: "POST", body: JSON.stringify({
+      query: "近12个月各品牌月交付量趋势" }) }).then(r => r.json()),
+    fetch(`${API_URL}/api/chat`, { method: "POST", body: JSON.stringify({
+      query: "本月各品牌预算达成率排名" }) }).then(r => r.json()),
+    fetch(`${API_URL}/api/sop/analyze`, { method: "POST", body: JSON.stringify({
+      brand_name: "广汽埃安", year_month: "2025-03" }) }).then(r => r.json())
+  ]);
+  return { kpis, trend, ranking, alerts };
+}
+```
+
+#### 视觉规范
+
+- 4 个 KPI 卡片顶部一行（深色背景 #0F172A，金色数字）
+- 中间双轴趋势图（占满宽度）
+- 左侧品牌排名 + 右侧异常预警流
+- 全屏 1920×1080 设计稿，支持 F11 沉浸式
+
+#### 验收
+
+| 指标 | 目标 |
+|------|------|
+| 首屏加载 | < 3s（4 个查询并发）|
+| 异常数据展示 | SOP 引擎触发的下钻结论 |
+| 大屏适配 | 1920×1080 / 2560×1440 |
+
+---
+
+### 5.3 🔗 SOP 归因引擎接入 API + UI
+
+**价值**：简历承诺"高频场景封装：预算执行偏差、销量达成归因"。代码已实现但完全未接入。
+
+#### 后端改造（`backend/api/main.py`）
+
+```python
+# 新增 SOP 路由
+from backend.core.sop_analyzer import SopAnalyzer
+
+sop_engine = SopAnalyzer()
+
+@app.post("/api/sop/analyze", response_model=SopAnalysisResponse)
+def sop_analyze(req: SopAnalysisRequest):
+    """
+    高频归因 SOP：大盘对标 → 维度下钻 → 跨域归因 → 策略建议
+    """
+    result = sop_engine.analyze_fulfillment_gap(
+        brand_name=req.brand_name,
+        year_month=req.year_month,
+        threshold_pct=req.threshold_pct or 95.0
+    )
+    return SopAnalysisResponse(
+        success=True,
+        brand=req.brand_name,
+        year_month=req.year_month,
+        step1_summary=result["step1"],
+        step2_drill_down=result["step2"],
+        step3_attribution=result["step3"],
+        step4_recommendations=result["step4"],
+        executive_summary=result["executive_summary"]
+    )
+```
+
+```python
+# backend/api/schemas.py 新增
+class SopAnalysisRequest(BaseModel):
+    brand_name: str
+    year_month: str = Field(..., pattern=r"^\d{4}-\d{2}$")
+    threshold_pct: Optional[float] = 95.0
+
+class SopAnalysisResponse(BaseModel):
+    success: bool
+    brand: str
+    year_month: str
+    step1_summary: Dict
+    step2_drill_down: Dict
+    step3_attribution: Dict
+    step4_recommendations: List[str]
+    executive_summary: str
+```
+
+#### 前端改造（`frontend/src/components/SopResult.tsx` + 主页按钮）
+
+```typescript
+// 主页 ChatMessage 新增"深度归因"按钮
+<button onClick={() => triggerSop(result.brand, result.year_month)}>
+  🔬 深度归因分析
+</button>
+
+async function triggerSop(brand: string, yearMonth: string) {
+  const res = await fetch(`${API_URL}/api/sop/analyze`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ brand_name: brand, year_month: yearMonth })
+  });
+  return res.json();
+}
+```
+
+#### 验收
+
+| 指标 | 目标 |
+|------|------|
+| SOP API 响应 | < 1.5s（4 步聚合查询）|
+| 报告完整性 | 4 步全部输出 + 执行摘要 |
+| 触发入口 | 主页 ChatMessage 底部"深度归因"按钮 |
+
+---
+
+### 5.4 📊 自动化评测体系（`run_eval.py` 脚本）
+
+**价值**：简历承诺"评测与运营机制：搭建问数问题集与 Bad Case 回收机制，持续回归验证准确率"。当前数据集有 100+ 题，但 `run_eval.py` 缺失。
+
+#### 实现（`backend/eval/run_eval.py`）
+
+```python
+"""工业级 ChatBI 自动化评测跑分脚本"""
+import json, time, statistics
+from pathlib import Path
+from backend.core.nl2sql_engine import Nl2SqlEngine
+
+DATASET_PATH = Path("backend/eval/eval_dataset.json")
+REPORT_PATH = Path("backend/eval/eval_report.json")
+
+def run_eval(limit: int = None) -> dict:
+    engine = Nl2SqlEngine()
+    dataset = json.loads(DATASET_PATH.read_text())
+    if limit: dataset = dataset[:limit]
+
+    results = []
+    for case in dataset:
+        start = time.time()
+        try:
+            out = engine.ask(case["query"], force_mock=False)
+            elapsed_ms = (time.time() - start) * 1000
+            sql_pass = bool(out.get("sql")) and out.get("success")
+            results.append({
+                "id": case["id"],
+                "difficulty": case.get("difficulty"),
+                "sql_pass": sql_pass,
+                "execution_time_ms": elapsed_ms,
+                "error": out.get("error")
+            })
+        except Exception as e:
+            results.append({"id": case["id"], "sql_pass": False, "error": str(e)})
+
+    return summarize(results)
+
+def summarize(results: list) -> dict:
+    total = len(results)
+    passed = sum(1 for r in results if r["sql_pass"])
+    latencies = [r["execution_time_ms"] for r in results if r.get("execution_time_ms")]
+    report = {
+        "total": total,
+        "sql_pass_rate": round(passed / total * 100, 2),
+        "avg_latency_ms": round(statistics.mean(latencies), 1),
+        "p95_latency_ms": round(statistics.quantiles(latencies, n=20)[18], 1) if len(latencies) > 5 else 0,
+        "by_difficulty": {}
+    }
+    for diff in ["easy", "medium", "hard"]:
+        sub = [r for r in results if r.get("difficulty") == diff]
+        if sub:
+            report["by_difficulty"][diff] = {
+                "count": len(sub),
+                "pass_rate": round(sum(1 for r in sub if r["sql_pass"]) / len(sub) * 100, 2)
+            }
+    return report
+
+if __name__ == "__main__":
+    report = run_eval()
+    REPORT_PATH.write_text(json.dumps(report, indent=2, ensure_ascii=False))
+    print(json.dumps(report, indent=2, ensure_ascii=False))
+```
+
+#### 运行
+
+```bash
+cd backend
+python -m eval.run_eval                # 全量 100+ 题
+python -m eval.run_eval --limit 10     # 快速冒烟
+```
+
+#### 验收
+
+| 指标 | 目标 | 实测 |
+|------|------|------|
+| SQL Syntax Pass Rate | ≥ 95% | — |
+| 数据准确率 | ≥ 88% | — |
+| 平均延迟 | ≤ 2.5s | — |
+| 难度分级通过率 | easy ≥ 99% / medium ≥ 90% / hard ≥ 70% | — |
+
+---
+
+### 5.5 📚 RAG 轻量知识库（指标口径 + 业务术语）
+
+**价值**：简历承诺"知识库沉淀：指标口径、业务术语、历史分析报告与企业知识文档，通过 RAG 提升专业问题的回答准确率"。
+
+#### 实现（`backend/services/rag_retriever.py`）
+
+```python
+"""轻量级 RAG：基于 ChromaDB 的向量检索 + 关键词兜底"""
+from pathlib import Path
+import chromadb
+from chromadb.utils import embedding_functions
+
+KNOWLEDGE_DIR = Path("backend/knowledge")
+CHROMA_DIR = Path("backend/data/chroma_db")
+
+class RagRetriever:
+    def __init__(self):
+        self.client = chromadb.PersistentClient(path=str(CHROMA_DIR))
+        self.ef = embedding_functions.DefaultEmbeddingFunction()
+        self.col = self.client.get_or_create_collection(
+            name="gac_knowledge",
+            embedding_function=self.ef,
+            metadata={"hnsw:space": "cosine"}
+        )
+        if self.col.count() == 0:
+            self._ingest_seed()
+
+    def _ingest_seed(self):
+        """首次启动灌入：6 个指标口径 + 业务术语表 + 历史报告模板"""
+        docs, ids, metas = [], [], []
+        # 1. 指标口径（来自 metrics_dict.json）
+        for m in json.loads((KNOWLEDGE_DIR / "metrics_dict.json").read_text())["metrics"]:
+            docs.append(json.dumps(m, ensure_ascii=False))
+            ids.append(f"metric_{m['id']}")
+            metas.append({"type": "metric", "domain": m.get("domain")})
+        # 2. 业务术语词典
+        glossary = json.loads((KNOWLEDGE_DIR / "glossary.json").read_text())
+        for term in glossary["terms"]:
+            docs.append(f"{term['name']}: {term['definition']}")
+            ids.append(f"term_{term['name']}")
+            metas.append({"type": "glossary"})
+        self.col.add(documents=docs, ids=ids, metadatas=metas)
+
+    def retrieve(self, query: str, top_k: int = 3) -> list[dict]:
+        """混合检索：向量相似度 + 关键词完全匹配加权"""
+        res = self.col.query(query_texts=[query], n_results=top_k)
+        return [
+            {"doc": res["documents"][0][i], "meta": res["metadatas"][0][i]}
+            for i in range(len(res["documents"][0]))
+        ]
+
+# 在 nl2sql_engine 的 prompt 组装阶段注入：
+#   rag.retrieve(query) → 把 top-3 文档拼接到 SYSTEM_PROMPT 之后
+```
+
+#### 前置物料（`backend/knowledge/glossary.json`）
+
+```json
+{
+  "terms": [
+    {"name": "达成率", "definition": "实际交付量 ÷ 预算目标 × 100%，衡量预算执行进度的核心指标"},
+    {"name": "CPL", "definition": "Cost Per Lead，单条有效线索的获客成本"},
+    {"name": "大区", "definition": "广汽集团销售区域划分：华东/华南/华北/华中/西南/西北/东北"},
+    {"name": "终端折扣", "definition": "经销商在厂商指导价基础上给予消费者的现金优惠幅度"}
+  ]
+}
+```
+
+#### 验收
+
+| 指标 | 目标 |
+|------|------|
+| 首查响应 | < 1s（含 embedding 推理）|
+| 召回 top-3 准确率 | ≥ 90%（手工标注 30 题测试）|
+| Prompt Token 增加 | < 200 tokens/query |
+
+---
+
+### 5.6 Sprint 5 落地排期
+
+| Day | 任务 | 工时 | 优先级 |
+|-----|------|------|--------|
+| Day 1 上午 | 5.1 SSE 流式（后端 + 前端） | 3h | 🔴 P0 |
+| Day 1 下午 | 5.3 SOP 接入 API + UI | 2h | 🔴 P0 |
+| Day 2 | 5.2 驾驶舱大屏（4 KPI + 趋势 + 排名 + 预警） | 4h | 🟡 P1 |
+| Day 3 | 5.4 评测脚本 + CI 集成 | 3h | 🟡 P1 |
+| Day 4 | 5.5 RAG 知识库（指标 + 术语） | 3h | 🟢 P2 |
+| Day 5 | 联调 + 性能压测 + 文档更新 | 4h | — |
+
+---
+
+## 十一、Sprint 6 路线图与三阶段验收 Checklist
+
+### 11.1 三阶段交付物对照表
+
+| 阶段 | 时间 | 承诺能力 | 已落地 | 待 Sprint 5 补齐 |
+|------|------|---------|--------|-----------------|
+| **Phase 1** 指标体系 | 2025.12-2026.01 | 指标口径 / 数据注入 / Prompt 调优 | ✅ 100% | — |
+| **Phase 2** 智能问数 | 2026.01-2026.05 | 分析模型 / NL2SQL / 闭环洞察报告 | ✅ 90% | ⚡ SSE / 🚗 大屏 |
+| **Phase 3** 能力沉淀 | 2026.05-至今 | RAG / SOP 封装 / 评测体系 | ⚠️ 70% | 🔗 SOP 接入 / 📊 run_eval / 📚 RAG |
+
+### 11.2 简历可直接引用的能力清单
+
+完成后可在简历中明确写出：
+
+```text
+✅ 经营指标体系：6 个核心指标（M01-M06），覆盖整车销售 / 经营财务 / 市场营销 / 渠道经营
+✅ 异构数据治理：3 张事实表 + 2 万条高仿真 mock 数据，Schema 动态剪枝降低 85% Token
+✅ Prompt 工程：结构化 System Prompt + 4 个 Few-Shot + 1 次 Self-Healing 自愈
+✅ NL2SQL 核心链路：意图识别 → Schema 剪枝 → LLM 生成 → AST 安全校验 → DuckDB 执行
+✅ 图表自适应：4 类 ECharts 配置（line/bar/pie/dual_axis）自动推断
+✅ SSE 流式输出：5 类事件，首字延迟 < 600ms
+✅ 闭环洞察报告：四步归因 SOP + 管理驾驶舱大屏 + 函数调用图表
+✅ RAG 知识库：ChromaDB + 指标口径 + 业务术语
+✅ 高频场景封装：预算偏差 / 销量归因 / 异常波动三类标准模板
+✅ 工业级评测：100+ 题评测集 + run_eval.py 自动回归 + 分难度通过率统计
+✅ 零成本部署：Render Static Site + Web Service，GitHub 集成自动化
+```
+
+### 11.3 最终验收 Checklist
+
+```text
+[ ] Sprint 5.1 SSE 流式响应：5 类事件 + TTFT < 600ms
+[ ] Sprint 5.2 驾驶舱大屏：4 KPI + 趋势 + 排名 + 预警 全屏展示
+[ ] Sprint 5.3 SOP 接入：/api/sop/analyze 端点 + 主页"深度归因"按钮
+[ ] Sprint 5.4 run_eval.py：100+ 题全量跑通 + 分难度报告
+[ ] Sprint 5.5 RAG 知识库：指标 + 术语灌库 + 召回验证
+[ ] Phase 1/2/3 全部对齐简历描述
+[ ] 部署 URL 可公网访问
+[ ] 评测报告输出至 backend/eval/eval_report.json
+```
+
+---
+
+*这份手册已完整落实在本工作区，所有 Sprint 任务可直接驱动 Cursor 逐个模块敏捷实现！*

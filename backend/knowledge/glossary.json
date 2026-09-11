@@ -1,0 +1,60 @@
+{
+  "version": "1.0.0",
+  "domain_group": "广汽集团业务术语词典",
+  "terms": [
+    {
+      "name": "达成率",
+      "definition": "实际交付量 ÷ 预算目标 × 100%，衡量预算执行进度的核心指标。低于 95% 触发预警。",
+      "synonyms": ["预算达成率", "目标完成率", "销售达成率"],
+      "related_metrics": ["M01"]
+    },
+    {
+      "name": "CPL",
+      "definition": "Cost Per Lead，单条有效线索的获客成本。计算公式：营销总投入 ÷ 有效线索数。",
+      "synonyms": ["获客成本", "线索成本"],
+      "related_metrics": ["M05"]
+    },
+    {
+      "name": "大区",
+      "definition": "广汽集团销售区域划分：华东（沪苏浙皖）/ 华南（粤桂琼）/ 华北（京津冀蒙晋）/ 华中（豫鄂湘赣）/ 西南（川渝黔滇）/ 西北（陕甘宁青新）/ 东北（辽吉黑）。",
+      "synonyms": ["区域", "销售区域"],
+      "related_metrics": ["M02", "M06"]
+    },
+    {
+      "name": "终端折扣",
+      "definition": "经销商在厂商指导价基础上给予消费者的现金优惠幅度，以百分比表示。折扣越大毛利越低。",
+      "synonyms": ["让利幅度", "终端让利", "折扣率"],
+      "related_metrics": ["M04"]
+    },
+    {
+      "name": "客流转化率",
+      "definition": "实际交付量 ÷ 进店客流（线索量）× 100%，衡量门店运营效率的关键指标。",
+      "synonyms": ["转化率", "成交率", "留资转化率"],
+      "related_metrics": ["M06"]
+    },
+    {
+      "name": "单车营销成本",
+      "definition": "营销总投入 ÷ 实际交付量，反映单车获客效率。",
+      "synonyms": ["单车获客成本", "营销单台成本"],
+      "related_metrics": ["M05"]
+    },
+    {
+      "name": "预算目标",
+      "definition": "广汽集团年初下发的各品牌月度销售目标，存储于 dim_budget_target 表。",
+      "synonyms": ["销售目标", "KPI 目标"],
+      "related_metrics": ["M01"]
+    },
+    {
+      "name": "SOP",
+      "definition": "Standard Operating Procedure，标准作业程序。本项目将销量达成归因封装为四步 SOP：大盘对标 → 维度下钻 → 跨域归因 → 策略建议。",
+      "synonyms": ["标准作业程序", "归因流程"],
+      "related_metrics": []
+    },
+    {
+      "name": "RAG",
+      "definition": "Retrieval-Augmented Generation，检索增强生成。本项目用 ChromaDB 存储指标口径与业务术语，召回 Top-3 注入 Prompt 提升专业问题准确率。",
+      "synonyms": ["检索增强"],
+      "related_metrics": []
+    }
+  ]
+}
