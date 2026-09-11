@@ -1,0 +1,51 @@
+# =================================================
+# 广汽云 ChatBI 后端 - Koyeb 服务声明
+# 免费层：512MB RAM / 0.1 vCPU / nano 实例
+# 文档：https://www.koyeb.com/docs/deploy/docker
+# =================================================
+
+koyeb:
+  apps:
+    - name: gac-chatbi
+      routes:
+        # 路由规则：把根路径 / 反代到后端服务
+        - path: "/"
+          port: 8000
+      services:
+        - name: gac-chatbi-api
+          dockerfile: backend/Dockerfile
+          # 免费实例：nano（512MB RAM · 0.1 vCPU）
+          instance_type: nano
+          # 区域：法兰克福（对中国大陆和欧洲都友好）
+          regions:
+            - fra
+          # 健康检查
+          health_checks:
+            - type: http
+              port: 8000
+              path: /api/health
+              interval_seconds: 30
+              timeout_seconds: 10
+          # 端口
+          ports:
+            - port: 8000
+              protocol: http
+          # 环境变量（部署前在 Koyeb Console 填 LLM_API_KEY）
+          env:
+            - key: PYTHONUNBUFFERED
+              value: "1"
+            - key: LLM_BASE_URL
+              value: "https://api.deepseek.com/v1"
+            - key: PYTHONPATH
+              value: "/app"
+            - key: FRONTEND_URL
+              # Vercel 部署后会得到这个 URL，需要改成实际地址
+              value: "https://gac-chatbi.vercel.app"
+            # ⚠️ 秘钥类型，需要在 Koyeb Console 手动添加（不要提交到 git）
+            - key: LLM_API_KEY
+              # 留空，部署后在 Console 填入
+              value: ""
+          # 自动部署：推送到 main 分支时自动构建
+          git:
+            branch: main
+            # repo 字段由 Koyeb Console 自动填充（关联 GitHub 后）

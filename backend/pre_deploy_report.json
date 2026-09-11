@@ -1,0 +1,125 @@
+{
+  "checks": [
+    {
+      "id": "E101",
+      "name": "Python 版本",
+      "status": "pass",
+      "detail": "3.9.6"
+    },
+    {
+      "id": "E102",
+      "name": "操作系统",
+      "status": "pass",
+      "detail": "macOS-26.6.2-arm64-arm-64bit"
+    },
+    {
+      "id": "E103",
+      "name": "render.yaml",
+      "status": "pass",
+      "detail": ""
+    },
+    {
+      "id": "B202.pandas",
+      "name": "import pandas",
+      "status": "fail",
+      "detail": "No module named 'pandas'"
+    },
+    {
+      "id": "B202.httpx",
+      "name": "import httpx",
+      "status": "fail",
+      "detail": "No module named 'httpx'"
+    },
+    {
+      "id": "B202.openai",
+      "name": "import openai",
+      "status": "fail",
+      "detail": "No module named 'openai'"
+    },
+    {
+      "id": "B202.sse_starlette",
+      "name": "import sse_starlette",
+      "status": "fail",
+      "detail": "No module named 'sse_starlette'"
+    },
+    {
+      "id": "B203",
+      "name": "DuckDB 数据文件",
+      "status": "pass",
+      "detail": "1.01MB"
+    },
+    {
+      "id": "B204",
+      "name": "DuckDB 表清单",
+      "status": "warn",
+      "detail": ""
+    },
+    {
+      "id": "B205",
+      "name": ".env.example",
+      "status": "pass",
+      "detail": ""
+    },
+    {
+      "id": "R301",
+      "name": "所有路由注册",
+      "status": "pass",
+      "detail": ""
+    },
+    {
+      "id": "R302",
+      "name": "NL2SQL 引擎冒烟",
+      "status": "pass",
+      "detail": ""
+    },
+    {
+      "id": "R303",
+      "name": "RAG 知识库",
+      "status": "pass",
+      "detail": "{'total_docs': 15, 'metric_count': 6, 'glossary_count': 9, 'vocab_size': 872, 'indexed': True}"
+    },
+    {
+      "id": "F402",
+      "name": "scripts.build",
+      "status": "pass",
+      "detail": ""
+    },
+    {
+      "id": "F403",
+      "name": "next.config.mjs 静态导出",
+      "status": "pass",
+      "detail": ""
+    },
+    {
+      "id": "R501.LLM_API_KEY",
+      "name": "env LLM_API_KEY",
+      "status": "warn",
+      "detail": ""
+    },
+    {
+      "id": "R501.LLM_BASE_URL",
+      "name": "env LLM_BASE_URL",
+      "status": "warn",
+      "detail": ""
+    }
+  ],
+  "errors": [
+    "[B202.pandas] import pandas: No module named 'pandas'",
+    "[B202.httpx] import httpx: No module named 'httpx'",
+    "[B202.openai] import openai: No module named 'openai'",
+    "[B202.sse_starlette] import sse_starlette: No module named 'sse_starlette'"
+  ],
+  "warnings": [
+    "[B204] DuckDB 表清单: ",
+    "[R501.LLM_API_KEY] env LLM_API_KEY: ",
+    "[R501.LLM_BASE_URL] env LLM_BASE_URL: "
+  ],
+  "summary": {
+    "total": 17,
+    "passed": 10,
+    "warned": 3,
+    "failed": 4,
+    "deploy_ready": false,
+    "generated_at": "2026-09-11T10:35:41.979714"
+  }
+}
