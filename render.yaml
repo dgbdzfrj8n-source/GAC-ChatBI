@@ -1,10 +1,10 @@
 # GAC-ChatBI Render 双服务部署声明（Infrastructure as Code）
-# Render 官方文档：https://docs.render.com/blueprint-spec
+# 官方参考：https://docs.render.com/blueprint-spec
 # 使用方式：Render 控制台 → New + → Blueprint → 关联此仓库
 
 services:
   # ──────────────────────────────────────────────────────
-  # 1. 后端：FastAPI Web Service
+  # 1. 后端：FastAPI Web Service（Python 原生运行时）
   # ──────────────────────────────────────────────────────
   - type: web
     name: gac-chatbi-api
@@ -22,20 +22,18 @@ services:
         value: "https://api.deepseek.com/v1"
       - key: PYTHONPATH
         value: "/opt/render/project/src/backend"
-      # ⚠️ LLM_API_KEY 是 secret，sync: false 表示不写入仓库
-      # 必须在 Render Dashboard → Environment 手动填入
+      # ⚠️ secret 字段，不写入仓库
       - key: LLM_API_KEY
         sync: false
 
   # ──────────────────────────────────────────────────────
   # 2. 前端：Next.js Static Site
-  # ⚠️ Render Static Site 类型字段：buildCommand / publishPath / staticPublishPath
+  # Render 官方写法：type=web + runtime=static + staticPublishPath
   # ──────────────────────────────────────────────────────
-  - type: static_site
+  - type: web
     name: gac-chatbi-frontend
+    runtime: static
     rootDir: frontend
     plan: free
     buildCommand: npm install && npm run build
     staticPublishPath: ./out
-    # ⚠️ Static Site 不支持 autoDeploy 字段（Web Service 才有）
-    # 自动部署需要在 Dashboard 手动开启
