@@ -5,12 +5,12 @@
 services:
   # ──────────────────────────────────────────────────────
   # 1. 后端：FastAPI Web Service（Python 原生运行时）
+  # 不指定 plan → 使用默认 Free 实例（512MB / 0.1 CPU）
   # ──────────────────────────────────────────────────────
   - type: web
     name: gac-chatbi-api
     runtime: python
     rootDir: backend
-    plan: free
     buildCommand: pip install --upgrade pip && pip install -r requirements.txt
     startCommand: uvicorn api.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /api/health
@@ -29,11 +29,11 @@ services:
   # ──────────────────────────────────────────────────────
   # 2. 前端：Next.js Static Site
   # Render 官方写法：type=web + runtime=static + staticPublishPath
+  # Static Site 本身免费（不消耗 build minute）
   # ──────────────────────────────────────────────────────
   - type: web
     name: gac-chatbi-frontend
     runtime: static
     rootDir: frontend
-    plan: free
     buildCommand: npm install && npm run build
     staticPublishPath: ./out
