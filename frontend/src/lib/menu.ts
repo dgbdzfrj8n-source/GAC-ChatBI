@@ -71,6 +71,13 @@ export const menuConfig: MenuGroup[] = [
         path: '/history',
         description: '查看历史问答记录',
       },
+      {
+        id: 'semantic',
+        label: '语义层',
+        icon: '🧠',
+        path: '/semantic',
+        description: '管理 NL2SQL 指标 / 维度 / 同义词',
+      },
     ],
   },
   {
@@ -127,6 +134,11 @@ export const pageTitleMap: Record<string, { title: string; subtitle: string; let
     title: '历史会话',
     subtitle: '查看历史问答与查询记录',
     letter: 'L', // 历
+  },
+  '/semantic': {
+    title: '语义层',
+    subtitle: '管理 NL2SQL 指标口径 / 维度字段 / 业务同义词',
+    letter: 'Y', // 语
   },
   '/settings': {
     title: '设置',

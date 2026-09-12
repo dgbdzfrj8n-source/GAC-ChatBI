@@ -27,7 +27,12 @@ from api.schemas import (
     MetricListResponse,
     BadCaseFeedbackRequest,
     SopAnalysisRequest,
-    SopAnalysisResponse
+    SopAnalysisResponse,
+    SemanticLayerResponse,
+    MetricUpdateRequest,
+    GlossaryUpdateRequest,
+    SemanticPreviewRequest,
+    SemanticPreviewResponse,
 )
 from core.nl2sql_engine import Nl2SqlEngine
 from core.chart_recommender import ChartRecommender
@@ -465,6 +470,62 @@ def dashboard_snapshot(latest_month: str = "2025-04"):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"驾驶舱大屏数据聚合异常: {str(e)}")
+
+
+# ============================================================
+# P2-2: 语义层（Semantic Layer）管理 API
+# ============================================================
+@app.get("/api/semantic", response_model=SemanticLayerResponse, tags=["语义层"])
+async def get_semantic_layer():
+    """获取语义层完整快照（指标 / 维度 / 同义词 三层）"""
+    try:
+        from services.semantic_layer import get_full_snapshot
+        return get_full_snapshot()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"读取语义层失败: {str(e)}")
+
+
+@app.put("/api/semantic/metrics/{metric_id}", tags=["语义层"])
+async def update_metric_definition(metric_id: str, body: MetricUpdateRequest):
+    """编辑指标口径（definition / calculation_rule / example_query 三字段可改）"""
+    try:
+        from services.semantic_layer import update_metric
+        updates = {k: v for k, v in body.model_dump(exclude_none=True).items() if v is not None}
+        if not updates:
+            raise HTTPException(status_code=400, detail="无可更新字段")
+        result = update_metric(metric_id, updates)
+        return {"success": True, "metric_id": metric_id, "updated_fields": list(updates.keys()), "metric": result}
+    except ValueError as ve:
+        raise HTTPException(status_code=404, detail=str(ve))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"更新指标失败: {str(e)}")
+
+
+@app.put("/api/semantic/glossary/{term_name}", tags=["语义层"])
+async def update_glossary_term(term_name: str, body: GlossaryUpdateRequest):
+    """编辑业务术语（definition / synonyms / related_metrics）"""
+    try:
+        from services.semantic_layer import update_glossary
+        updates = {k: v for k, v in body.model_dump(exclude_none=True).items() if v is not None}
+        if not updates:
+            raise HTTPException(status_code=400, detail="无可更新字段")
+        result = update_glossary(term_name, updates)
+        return {"success": True, "term_name": term_name, "updated_fields": list(updates.keys()), "term": result}
+    except ValueError as ve:
+        raise HTTPException(status_code=404, detail=str(ve))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"更新术语失败: {str(e)}")
+
+
+@app.post("/api/semantic/preview", response_model=SemanticPreviewResponse, tags=["语义层"])
+async def preview_semantic_recall(body: SemanticPreviewRequest):
+    """模拟问数：把当前语义层应用到召回，返回命中的指标/术语 + 示例 SQL"""
+    try:
+        from services.semantic_layer import preview_query
+        return preview_query(body.query)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"预览失败: {str(e)}")
+
 
 if __name__ == "__main__":
     import uvicorn

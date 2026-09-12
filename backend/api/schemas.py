@@ -77,3 +77,41 @@ class SopAnalysisResponse(BaseModel):
     recommendations: List[Dict[str, Any]] = Field(default_factory=list, description="可执行策略清单")
     executive_summary: str = Field(..., description="高管可读的归因摘要")
     execution_time_ms: float = 0.0
+
+
+# --- 6. P2-2 语义层（Semantic Layer）契约 ---
+class SemanticLayerResponse(BaseModel):
+    """语义层完整快照（指标/维度/同义词 三层）"""
+    version: str
+    domain_group: str
+    metrics: List[Dict[str, Any]] = Field(..., description="指标层 6 项")
+    dimensions: List[Dict[str, Any]] = Field(..., description="维度层：自动从 schema 抽取的字段")
+    glossary: List[Dict[str, Any]] = Field(..., description="同义词层：业务术语")
+
+
+class MetricUpdateRequest(BaseModel):
+    """指标层编辑：definition / calculation_rule / example_query 可改"""
+    definition: Optional[str] = None
+    calculation_rule: Optional[str] = None
+    example_query: Optional[str] = None
+
+
+class GlossaryUpdateRequest(BaseModel):
+    """术语层编辑：definition / synonyms / related_metrics"""
+    definition: Optional[str] = None
+    synonyms: Optional[List[str]] = None
+    related_metrics: Optional[List[str]] = None
+
+
+class SemanticPreviewRequest(BaseModel):
+    """模拟问数：把语义层应用到 RAG 召回"""
+    query: str = Field(..., description="业务自然语言问数", min_length=1)
+
+
+class SemanticPreviewResponse(BaseModel):
+    """模拟问数召回结果"""
+    query: str
+    matched_metrics: List[Dict[str, Any]] = Field(default_factory=list)
+    matched_terms: List[Dict[str, Any]] = Field(default_factory=list)
+    sample_sql: Optional[str] = Field(None)
+
