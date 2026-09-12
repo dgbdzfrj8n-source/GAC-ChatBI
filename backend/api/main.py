@@ -527,6 +527,110 @@ async def preview_semantic_recall(body: SemanticPreviewRequest):
         raise HTTPException(status_code=500, detail=f"预览失败: {str(e)}")
 
 
+# ============================================================
+# P2-1: 数据管理（CSV 导入 / 导出 / 列表 / 预览 / 删除）
+# ============================================================
+from fastapi import UploadFile, File, Form
+from fastapi.responses import PlainTextResponse, Response
+
+
+@app.get("/api/data/uploads", tags=["数据管理"])
+async def list_uploads():
+    """列出所有用户上传的 CSV/DuckDB 表"""
+    try:
+        from services.data_manager import list_user_tables
+        return {"success": True, "tables": list_user_tables()}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"读取用户表失败: {str(e)}")
+
+
+@app.get("/api/data/stats", tags=["数据管理"])
+async def data_stats():
+    """用户库容量统计"""
+    try:
+        from services.data_manager import get_stats
+        return get_stats()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"读取统计失败: {str(e)}")
+
+
+@app.post("/api/data/upload", tags=["数据管理"])
+async def upload_csv(
+    file: UploadFile = File(..., description="CSV 文件"),
+    table_name: str = Form(..., description="目标表名（自动加 user_ 前缀）"),
+):
+    """上传 CSV 到用户库（独立 DuckDB 文件，不影响业务主库）"""
+    try:
+        content = await file.read()
+        if not content:
+            raise HTTPException(status_code=400, detail="文件为空")
+        # 解码（兼容 utf-8 / gbk）
+        for enc in ("utf-8-sig", "utf-8", "gbk", "gb18030"):
+            try:
+                text = content.decode(enc)
+                break
+            except UnicodeDecodeError:
+                continue
+        else:
+            raise HTTPException(status_code=400, detail="文件编码无法识别（仅支持 utf-8 / gbk）")
+
+        from services.data_manager import import_csv
+        result = import_csv(text, table_name)
+        return {"success": True, **result}
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"导入失败: {str(e)}")
+
+
+@app.get("/api/data/preview/{table_name}", tags=["数据管理"])
+async def preview_data(table_name: str, limit: int = 50):
+    """预览用户表前 N 行"""
+    try:
+        from services.data_manager import preview_table
+        return preview_table(table_name, limit)
+    except ValueError as ve:
+        raise HTTPException(status_code=404, detail=str(ve))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"预览失败: {str(e)}")
+
+
+@app.get("/api/data/export/{table_name}", tags=["数据管理"])
+async def export_data(table_name: str):
+    """导出用户表为 CSV 下载"""
+    try:
+        from services.data_manager import export_table_csv
+        csv_content = export_table_csv(table_name)
+        return Response(
+            content=csv_content,
+            media_type="text/csv; charset=utf-8",
+            headers={
+                "Content-Disposition": f'attachment; filename="{table_name}.csv"',
+                "Content-Type": "text/csv; charset=utf-8",
+            },
+        )
+    except ValueError as ve:
+        raise HTTPException(status_code=404, detail=str(ve))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"导出失败: {str(e)}")
+
+
+@app.delete("/api/data/{table_name}", tags=["数据管理"])
+async def delete_data(table_name: str):
+    """删除用户表 + CSV 归档"""
+    try:
+        from services.data_manager import delete_table
+        return delete_table(table_name)
+    except ValueError as ve:
+        raise HTTPException(status_code=404, detail=str(ve))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"删除失败: {str(e)}")
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("api.main:app", host="0.0.0.0", port=8000, reload=True)

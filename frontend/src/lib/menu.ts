@@ -65,6 +65,13 @@ export const menuConfig: MenuGroup[] = [
         description: '3 张事实表 Schema',
       },
       {
+        id: 'data-manager',
+        label: '数据管理',
+        icon: '📤',
+        path: '/data-manager',
+        description: '上传 / 预览 / 导出用户 CSV',
+      },
+      {
         id: 'history',
         label: '历史会话',
         icon: '📜',
@@ -129,6 +136,11 @@ export const pageTitleMap: Record<string, { title: string; subtitle: string; let
     title: '数据表',
     subtitle: '3 张事实表 Schema 与示例查询',
     letter: 'S', // 数
+  },
+  '/data-manager': {
+    title: '数据管理',
+    subtitle: 'CSV 导入 / 预览 / 导出 / 删除 — 用户数据独立库',
+    letter: 'D', // 数
   },
   '/history': {
     title: '历史会话',
