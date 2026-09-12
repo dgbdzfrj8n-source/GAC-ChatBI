@@ -12,7 +12,7 @@ export default function Sidebar() {
     <aside className="w-60 bg-white border-r border-gac-gray-200 flex flex-col h-screen flex-shrink-0">
       {/* ====== 顶部 Logo 区 ====== */}
       <div className="h-16 flex items-center px-5 border-b border-gac-gray-200 flex-shrink-0">
-        <GacLogo size="md" />
+        <GacLogo size={36} />
         <div className="ml-3 leading-tight">
           <div className="font-bold text-base text-gac-primary">广汽云 ChatBI</div>
           <div className="text-[11px] text-gac-gray-500 mt-0.5">智能经营分析平台</div>

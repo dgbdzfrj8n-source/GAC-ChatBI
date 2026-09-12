@@ -9,7 +9,7 @@ export const metadata: Metadata = {
   description: '广汽集团智能经营分析平台，AI 驱动的自然语言问数与可视化分析',
   icons: {
     icon:
-      "data:image/svg+xml," + encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><defs><linearGradient id='b' x1='0' y1='0' x2='1' y2='1'><stop offset='0%25' stop-color='%23003C8F'/><stop offset='100%25' stop-color='%230050B8'/></linearGradient></defs><ellipse cx='16' cy='16' rx='14' ry='13' fill='url(%23b)'/><ellipse cx='16' cy='16' rx='14' ry='13' fill='none' stroke='%23C8102E' stroke-width='2'/><text x='16' y='22' text-anchor='middle' font-size='14' font-weight='800' fill='white' font-family='sans-serif'>G</text></svg>`),
+      "data:image/svg+xml," + encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 32'><defs><linearGradient id='b' x1='0' y1='0' x2='1' y2='1'><stop offset='0%25' stop-color='%23D4152E'/><stop offset='100%25' stop-color='%23A8081F'/></linearGradient><linearGradient id='c' x1='0' y1='0' x2='1' y2='1'><stop offset='0%25' stop-color='%23003C8F'/><stop offset='100%25' stop-color='%230050B8'/></linearGradient></defs><ellipse cx='20' cy='16' rx='19' ry='12' fill='url(%23b)'/><ellipse cx='20' cy='16' rx='15.5' ry='9.5' fill='url(%23c)'/><text x='20' y='20' text-anchor='middle' font-size='11' font-weight='900' fill='white' font-family='sans-serif'>G</text></svg>`),
   },
 };
 
