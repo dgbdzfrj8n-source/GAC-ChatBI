@@ -1,29 +1,32 @@
 'use client';
 
-// 广汽集团品牌 Logo（PNG 图片版）
-// 浅色主题使用 /brand/gac-logo-light.png
-// 深色主题使用 /brand/gac-logo-dark.png
+// 广汽集团品牌 Logo —— 竖版版（次选）
+// 版式：银色 3D G 在上，红色 GAC 文字在下（viewBox 1024 × 724，宽高比 ≈ 1.414:1）
+// 浅色主题使用 /brand/gac-logo-light.svg（内嵌高清 PNG，可任意缩放）
+// 深色主题使用 /brand/gac-logo-dark.svg（暂用浅色版替代，后续可单独做深色版）
 // 通过 <html class="dark"> 自动切换。
-// size 仅控制高度，宽度按图片原始宽高比 (1024:837 ≈ 1.223:1) 自动计算，绝不拉伸。
+// size 仅控制高度，宽度按 viewBox 宽高比自动计算，绝不拉伸。
 
 import { useEffect, useState } from 'react';
 
-export type GacLogoSize = 'sm' | 'md' | 'lg' | number;
+export type GacLogoSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl' | number;
 
 interface GacLogoProps {
   size?: GacLogoSize;
   /** 是否随系统深色主题自动切换图片（默认 true） */
   autoTheme?: boolean;
   className?: string;
+  /** 是否显示"广汽云 ChatBI"标题文字（仅竖版 logo 旁边） */
+  showCaption?: boolean;
 }
 
-// 原始 PNG 宽高比（1024 × 837），保留比例的关键
-const ASPECT = 1024 / 837;
-// 用 height 作为唯一尺寸基准（width 由 CSS 内部按比例算），避免任何拉伸
+// 用 height 作为唯一尺寸基准（width 由 CSS 内部按 viewBox 宽高比自动算），避免任何拉伸
 const HEIGHT_MAP: Record<Exclude<GacLogoSize, number>, number> = {
-  sm: 24,
-  md: 30,
-  lg: 40,
+  xs: 28,
+  sm: 36,
+  md: 48,
+  lg: 64,
+  xl: 80,
 };
 
 function resolveHeight(size: GacLogoSize) {
@@ -35,6 +38,7 @@ export default function GacLogo({
   size = 'md',
   autoTheme = true,
   className = '',
+  showCaption = false,
 }: GacLogoProps) {
   const h = resolveHeight(size);
   const [isDark, setIsDark] = useState(false);
@@ -51,25 +55,40 @@ export default function GacLogo({
   }, [autoTheme]);
 
   // 破 CDN / 浏览器缓存：每次挂载加一个 v= 戳。
-  // 部署/刷新页面后保证浏览器拿到的是最新抠过色的 PNG。
   useEffect(() => {
     setBust(`?v=${Date.now()}`);
   }, []);
 
-  const lightSrc = `/brand/gac-logo-light.png${bust}`;
-  const darkSrc = `/brand/gac-logo-dark.png${bust}`;
+  // 竖版 logo：浅色版用 SVG（包含内嵌 PNG），深色版先用同一张（业务上 sidebar 默认浅色）。
+  // 未来如果要做深色专版，把 gac-logo-dark.svg 也准备好就行，组件无需改动。
+  const lightSrc = `/brand/gac-logo-light.svg${bust}`;
+  const darkSrc = `/brand/gac-logo-dark.svg${bust}`;
 
-  return (
+  const logoEl = (
     <img
       src={autoTheme && isDark ? darkSrc : lightSrc}
-      alt="广汽云 ChatBI"
-      // ⚠️ 不设 width/height 属性，不在 style 里同时锁死 w 和 h。
-      // 只锁 height + max-width，让 CSS 按图片原生宽高比渲染，避免任何拉伸变形。
+      alt="广汽集团 GAC"
+      // ⚠️ 只锁 height，width 由 CSS 内部按 viewBox 宽高比自动算，避免任何拉伸变形
       height={h}
       className={`block flex-shrink-0 select-none ${className}`}
       style={{ height: `${h}px`, width: 'auto', maxWidth: 'none' }}
       draggable={false}
     />
   );
-}
 
+  if (!showCaption) return logoEl;
+
+  return (
+    <div className="flex items-center gap-3">
+      {logoEl}
+      <div className="flex flex-col leading-tight">
+        <span className="text-[15px] font-semibold tracking-wide text-slate-900 dark:text-slate-50">
+          广汽云 ChatBI
+        </span>
+        <span className="text-[10px] uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+          GAC Intelligent BI
+        </span>
+      </div>
+    </div>
+  );
+}

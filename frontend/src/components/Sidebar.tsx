@@ -11,13 +11,13 @@ export default function Sidebar() {
   return (
     <aside className="w-60 bg-white border-r border-gac-gray-200 flex flex-col h-screen flex-shrink-0 dark:bg-gac-gray-900 dark:border-gac-gray-700">
       {/* ====== 顶部 Logo 区 ====== */}
-      <div className="h-16 flex items-center px-5 border-b border-gac-gray-200 flex-shrink-0 gap-3 dark:border-gac-gray-700">
-        <GacLogo size={32} />
-        <div className="leading-tight">
-          <div className="font-bold text-base leading-snug text-gac-gray-900 dark:text-white">
+      <div className="h-16 flex items-center px-4 border-b border-gac-gray-200 flex-shrink-0 gap-3 dark:border-gac-gray-700">
+        <GacLogo size={36} />
+        <div className="leading-tight min-w-0">
+          <div className="font-bold text-[15px] leading-snug text-gac-gray-900 dark:text-white truncate">
             广汽云 ChatBI
           </div>
-          <div className="text-[11px] mt-0.5 text-gac-gray-500 dark:text-gac-gray-400">
+          <div className="text-[11px] mt-0.5 text-gac-gray-500 dark:text-gac-gray-400 truncate">
             智能经营分析平台
           </div>
         </div>
