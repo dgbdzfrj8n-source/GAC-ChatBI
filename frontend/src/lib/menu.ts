@@ -97,37 +97,51 @@ export const menuConfig: MenuGroup[] = [
 ];
 
 // 用于快速查找页面标题（TopBar 使用）
-export const pageTitleMap: Record<string, { title: string; subtitle: string }> = {
+export const pageTitleMap: Record<string, { title: string; subtitle: string; letter: string }> = {
   '/': {
     title: '智能对话',
     subtitle: '基于集团真实经营数据，AI 驱动的智能问数',
+    letter: 'Z', // 智
   },
   '/dashboard': {
     title: '驾驶舱大屏',
     subtitle: '整车销售 / 经营财务 / 市场营销 / 渠道经营 一屏掌控',
+    letter: 'J', // 驾
   },
   '/reports': {
     title: '报表中心',
     subtitle: '高频场景封装的标准报表模板',
+    letter: 'B', // 报
   },
   '/metrics': {
     title: '指标库',
     subtitle: '6 个核心经营指标口径与定义',
+    letter: 'Z', // 指
   },
   '/tables': {
     title: '数据表',
     subtitle: '3 张事实表 Schema 与示例查询',
+    letter: 'S', // 数
   },
   '/history': {
     title: '历史会话',
     subtitle: '查看历史问答与查询记录',
+    letter: 'L', // 历
   },
   '/settings': {
     title: '设置',
     subtitle: '模型配置 / 主题 / 接口地址',
+    letter: 'S', // 设
   },
   '/help': {
     title: '帮助文档',
     subtitle: '使用文档与常见问题',
+    letter: 'B', // 帮
   },
+};
+
+// 用户头像（TopBar 右上角）
+export const userBadge = {
+  title: 'AI 分析师',
+  letter: 'A', // AI 操作员
 };

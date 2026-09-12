@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { pageTitleMap } from '@/lib/menu';
 import { useBrand, Brand } from '@/contexts/BrandContext';
 import GacBadge from './GacBadge';
+import { userBadge } from '@/lib/menu';
 
 const BRANDS: Brand[] = ['全部', '广汽埃安', '广汽传祺', '昊铂'];
 
@@ -95,11 +96,11 @@ export default function TopBar() {
           </select>
         </div>
 
-        {/* 用户头像（用广汽 Logo 小号） */}
+        {/* 用户头像（用页面徽标） */}
         <div className="flex items-center">
-          <GacBadge size="sm" />
+          <GacBadge size="sm" letter={userBadge.letter} />
           <div className="ml-2 leading-tight hidden lg:block">
-            <div className="text-sm font-medium text-gac-gray-900">AI 分析师</div>
+            <div className="text-sm font-medium text-gac-gray-900">{userBadge.title}</div>
             <div className="text-[11px] text-gac-gray-500">在线</div>
           </div>
         </div>
