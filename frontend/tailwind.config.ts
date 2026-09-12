@@ -6,6 +6,8 @@ const config: Config = {
     './src/components/**/*.{js,ts,jsx,tsx,mdx}',
     './src/app/**/*.{js,ts,jsx,tsx,mdx}',
   ],
+  // 深色主题：通过 <html class="dark"> 切换
+  darkMode: 'class',
   theme: {
     extend: {
       colors: {

@@ -21,6 +21,24 @@
     --foreground: #0f172a;
   }
 
+  /* ============ 深色主题（仅替换关键变量，避免大规模改动） ============ */
+  html.dark {
+    --gac-primary: #4f8cff;        /* 暗色下的主蓝（更柔和，避免刺眼） */
+    --gac-primary-light: #6aa1ff;
+    --gac-primary-dark: #2b6ee0;
+    --gac-accent: #ff5277;
+    --gac-gold: #ffd45c;
+    --gac-gray-50: #0f172a;        /* 反转：50=最深背景 */
+    --gac-gray-100: #1e293b;
+    --gac-gray-200: #334155;
+    --gac-gray-300: #475569;
+    --gac-gray-500: #94a3b8;
+    --gac-gray-700: #cbd5e1;
+    --gac-gray-900: #f1f5f9;        /* 文字偏白 */
+    --background: #0b1220;
+    --foreground: #f1f5f9;
+  }
+
   html, body {
     height: 100%;
   }
@@ -29,6 +47,7 @@
     @apply bg-gac-gray-50 text-gac-gray-900 antialiased;
     font-family: -apple-system, BlinkMacSystemFont, "PingFang SC",
                  "Microsoft YaHei", "Helvetica Neue", sans-serif;
+    transition: background-color 0.2s ease, color 0.2s ease;
   }
 }
 
@@ -102,7 +121,8 @@
   /* ============ 顶部栏 ============ */
   .topbar {
     @apply h-16 bg-white border-b border-gac-gray-200
-           flex items-center justify-between px-6 flex-shrink-0;
+           flex items-center justify-between px-6 flex-shrink-0
+           dark:bg-gac-gray-100 dark:border-gac-gray-200;
   }
 
   /* ============ 主内容区 ============ */

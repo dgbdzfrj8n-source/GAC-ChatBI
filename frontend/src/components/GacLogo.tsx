@@ -1,80 +1,66 @@
 'use client';
 
-// 广汽集团标志组件（SVG 精准还原版）
-// 设计参考：广汽集团官方 LOGO
-// 结构：外层红色椭圆细边框 + 内层蓝色实心椭圆 + 白色粗体 G 字
+// 广汽集团品牌 Logo（PNG 图片版）
+// 浅色主题使用 /brand/gac-logo-light.png
+// 深色主题使用 /brand/gac-logo-dark.png
+// 通过 <html class="dark"> 自动切换；可通过 tailwind 的 dark: 进一步样式控制。
+// 保留 size 兼容旧调用（'sm' | 'md' | 'lg' | number），单位为高度 px（自动算宽度）。
+
+import { useEffect, useState } from 'react';
+
+export type GacLogoSize = 'sm' | 'md' | 'lg' | number;
 
 interface GacLogoProps {
-  size?: 'sm' | 'md' | 'lg' | number;
+  size?: GacLogoSize;
+  /** 是否随系统深色主题自动切换图片（默认 true） */
+  autoTheme?: boolean;
+  className?: string;
 }
 
-export default function GacLogo({ size = 'md' }: GacLogoProps) {
-  const sizeMap = {
-    sm: { outer: 32, fontSize: 13, redStroke: 1.2 },
-    md: { outer: 40, fontSize: 17, redStroke: 1.5 },
-    lg: { outer: 52, fontSize: 22, redStroke: 1.8 },
-  };
+const SIZE_MAP: Record<Exclude<GacLogoSize, number>, { h: number; w: number }> = {
+  sm: { h: 32, w: 60 },   // 偏宽，与「广汽云 ChatBI」并排
+  md: { h: 38, w: 72 },
+  lg: { h: 52, w: 96 },
+};
 
-  const s = typeof size === 'number'
-    ? { outer: size, fontSize: size * 0.43, redStroke: size * 0.038 }
-    : sizeMap[size];
+function resolveSize(size: GacLogoSize) {
+  if (typeof size === 'number') {
+    return { h: size, w: Math.round(size * 1.85) };
+  }
+  return SIZE_MAP[size];
+}
 
-  const center = s.outer / 2;
-  // 椭圆更扁一些（高度约为宽度的 78%）
-  const rx = center - s.redStroke; // 给红色边框留位置
-  const ry = rx * 0.78;
+export default function GacLogo({
+  size = 'md',
+  autoTheme = true,
+  className = '',
+}: GacLogoProps) {
+  const { h, w } = resolveSize(size);
+  const [isDark, setIsDark] = useState(false);
+
+  useEffect(() => {
+    if (!autoTheme) return;
+    const root = document.documentElement;
+    const sync = () => setIsDark(root.classList.contains('dark'));
+    sync();
+    // 监听 html class 变化（用户切换主题时）
+    const obs = new MutationObserver(sync);
+    obs.observe(root, { attributes: true, attributeFilter: ['class'] });
+    return () => obs.disconnect();
+  }, [autoTheme]);
+
+  const lightSrc = '/brand/gac-logo-light.png';
+  const darkSrc = '/brand/gac-logo-dark.png';
 
   return (
-    <svg
-      width={s.outer}
-      height={s.outer}
-      viewBox={`0 0 ${s.outer} ${s.outer}`}
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      style={{ flexShrink: 0 }}
-    >
-      <defs>
-        {/* 内层蓝色渐变（广汽蓝） */}
-        <linearGradient id="gacBlueGrad2" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#003C8F" />
-          <stop offset="50%" stopColor="#00449E" />
-          <stop offset="100%" stopColor="#0050B8" />
-        </linearGradient>
-      </defs>
-
-      {/* ① 外层蓝色实心椭圆（作为底色，被红色边框包裹） */}
-      <ellipse
-        cx={center}
-        cy={center}
-        rx={rx}
-        ry={ry}
-        fill="url(#gacBlueGrad2)"
-      />
-
-      {/* ② 红色椭圆细边框（圈在外圈） */}
-      <ellipse
-        cx={center}
-        cy={center}
-        rx={rx}
-        ry={ry}
-        fill="none"
-        stroke="#C8102E"
-        strokeWidth={s.redStroke}
-      />
-
-      {/* ③ G 字母（白色粗体，几乎占满蓝椭圆） */}
-      <text
-        x={center}
-        y={center + s.fontSize * 0.36}
-        textAnchor="middle"
-        fill="white"
-        fontSize={s.fontSize}
-        fontWeight="900"
-        fontFamily="-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', sans-serif"
-        letterSpacing="-1"
-      >
-        G
-      </text>
-    </svg>
+    <img
+      src={autoTheme && isDark ? darkSrc : lightSrc}
+      alt="广汽云 ChatBI"
+      width={w}
+      height={h}
+      className={`block flex-shrink-0 select-none ${className}`}
+      style={{ height: `${h}px`, width: `${w}px` }}
+      draggable={false}
+    />
   );
 }
