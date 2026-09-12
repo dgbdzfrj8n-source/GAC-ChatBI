@@ -1,5 +1,7 @@
 'use client';
 
+import GacLogo from '@/components/GacLogo';
+
 interface FaqItem {
   q: string;
   a: string;
@@ -41,7 +43,7 @@ export default function HelpPage() {
       {/* 顶部说明 */}
       <div className="content-card p-5 mb-6">
         <div className="flex items-start gap-4">
-          <div className="gac-logo-lg">?</div>
+          <div className="flex-shrink-0"><GacLogo size="lg" /></div>
           <div className="flex-1">
             <h2 className="text-base font-semibold text-gac-gray-900 mb-1">帮助文档</h2>
             <p className="text-sm text-gac-gray-500 leading-relaxed">

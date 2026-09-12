@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import GacLogo from '@/components/GacLogo';
 
 export default function SettingsPage() {
   const [apiUrl, setApiUrl] = useState(
@@ -43,7 +44,7 @@ export default function SettingsPage() {
       {/* 顶部说明 */}
       <div className="content-card p-5 mb-6">
         <div className="flex items-start gap-4">
-          <div className="gac-logo-lg">S</div>
+          <div className="flex-shrink-0"><GacLogo size="lg" /></div>
           <div className="flex-1">
             <h2 className="text-base font-semibold text-gac-gray-900 mb-1">设置</h2>
             <p className="text-sm text-gac-gray-500 leading-relaxed">

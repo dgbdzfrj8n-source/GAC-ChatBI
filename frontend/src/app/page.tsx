@@ -238,6 +238,18 @@ export default function ChatPage() {
               )
             );
           },
+          onMetaAnswer: (text) => {
+            // 闲聊/元问题回复
+            accumulated.is_meta_answer = true;
+            accumulated.summary_insight = (accumulated.summary_insight || "") + text;
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === assistantId
+                  ? { ...m, content: m.content + text }
+                  : m
+              )
+            );
+          },
           onDone: (data) => {
             accumulated.success = data.success;
             accumulated.healed = data.healed;
@@ -406,28 +418,26 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="flex flex-col h-full">
-      {/* 主对话区 */}
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* 顶部：引导词 + 大屏入口 */}
-        <div className="px-6 pt-4 flex items-start justify-between gap-4">
-          <div className="flex-1">
-            <SuggestionPills onSuggestion={handleSuggestion} />
-          </div>
-          <a
-            href="/dashboard"
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-medium transition-all shadow-sm flex-shrink-0"
-            title="进入管理驾驶舱大屏"
-          >
-            <Activity className="w-3.5 h-3.5" />
-            驾驶舱大屏
-          </a>
+    <div className="flex flex-col h-full px-6 py-4">
+      {/* 快捷提问 + 大屏入口 */}
+      <div className="flex items-start justify-between gap-4 mb-4 flex-shrink-0">
+        <div className="flex-1">
+          <SuggestionPills onSuggestion={handleSuggestion} />
         </div>
+        <a
+          href="/dashboard"
+          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-medium transition-all shadow-sm flex-shrink-0"
+          title="进入管理驾驶舱大屏"
+        >
+          <Activity className="w-3.5 h-3.5" />
+          驾驶舱大屏
+        </a>
+      </div>
 
         {/* 对话流（可滚动区域） */}
-        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4 scrollbar-thin">
+        <div className="flex-1 overflow-y-auto space-y-4 scrollbar-thin">
           {messages.length === 0 && (
-            <div className="text-center py-16">
+            <div className="text-center py-12">
               <div className="text-5xl mb-4">🚗</div>
               <h2 className="text-xl font-semibold text-gray-800 mb-2">广汽云 ChatBI 智能问数</h2>
               <p className="text-gray-500 text-sm max-w-md mx-auto">
@@ -476,11 +486,10 @@ export default function ChatPage() {
           )}
 
           <div ref={messagesEndRef} />
-        </div>
 
-        {/* 底部操作栏 → sticky */}
+        {/* 底部操作栏 */}
         {currentResult && (
-          <div className="px-6 pb-2 flex items-center gap-2 text-xs text-gray-500 border-t border-gray-200 pt-3 bg-white flex-shrink-0">
+          <div className="flex-shrink-0 px-2 py-2 flex items-center gap-2 text-xs text-gray-500 border-t border-gray-200 bg-white">
             <button
               onClick={() => setShowSql(!showSql)}
               className="flex items-center gap-1 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors border border-gray-200"
@@ -535,13 +544,13 @@ export default function ChatPage() {
         )}
       </div>
 
-      {/* SQL 抽屉 → 固定浮层，不占布局 */}
+      {/* SQL 抽屉 → 固定浮层 */}
       {showSql && currentResult?.sql && (
         <SqlDrawer sql={currentResult.sql} onClose={() => setShowSql(false)} />
       )}
 
-      {/* 输入框 → 固定在底部 */}
-      <div className="px-6 pb-6 flex-shrink-0 bg-white border-t border-gray-100 pt-4">
+      {/* 输入框 → 固定底部 */}
+      <div className="flex-shrink-0 px-2 pt-3 pb-2 bg-white border-t border-gray-100">
         <div className="relative">
           <textarea
             ref={inputRef}

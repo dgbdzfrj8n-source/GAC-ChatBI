@@ -43,6 +43,11 @@ export interface StreamErrorEvent {
   data: { error: string };
 }
 
+export interface StreamMetaAnswerEvent {
+  event: "meta_answer";
+  data: { text: string };
+}
+
 export type StreamEvent =
   | StreamThoughtEvent
   | StreamSqlEvent
@@ -50,7 +55,8 @@ export type StreamEvent =
   | StreamChartEvent
   | StreamInsightEvent
   | StreamDoneEvent
-  | StreamErrorEvent;
+  | StreamErrorEvent
+  | StreamMetaAnswerEvent;
 
 export interface StreamCallbacks {
   onThought?: (data: { step: number; text: string }) => void;
@@ -61,6 +67,7 @@ export interface StreamCallbacks {
   onInsightStart?: () => void;
   onDone?: (data: { success: boolean; healed: boolean; engine: string }) => void;
   onError?: (error: string) => void;
+  onMetaAnswer?: (text: string) => void;
 }
 
 /**
@@ -130,6 +137,9 @@ export async function streamChat(
           break;
         case "error":
           callbacks.onError?.(data.error || "未知错误");
+          break;
+        case "meta_answer":
+          callbacks.onMetaAnswer?.(data.text);
           break;
       }
     }

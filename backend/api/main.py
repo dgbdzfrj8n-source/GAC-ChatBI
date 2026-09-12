@@ -238,6 +238,25 @@ async def chat_stream(req: ChatQueryRequest):
             # Step 2: 同步执行 NL2SQL 主链路（最耗时的部分）
             result = nl2sql_engine.ask(req.query, force_mock=req.force_mock)
 
+            # Step 2.1: 如果是闲聊/元问题，直接发 meta_answer 事件，跳过 SQL 生成
+            if result.get("is_meta_answer"):
+                meta_text = result.get("summary_insight") or "你好！我是广汽云 ChatBI。"
+                # 按标点分块流式推送
+                chunks = []
+                current = ""
+                for char in meta_text:
+                    current += char
+                    if char in "。！？；\n" or len(current) >= 10:
+                        chunks.append(current)
+                        current = ""
+                if current:
+                    chunks.append(current)
+                for chunk in chunks:
+                    yield f"event: meta_answer\ndata: {json.dumps({'text': chunk}, ensure_ascii=False)}\n\n"
+                    await asyncio.sleep(0.05)
+                yield f"event: done\ndata: {json.dumps({'success': True, 'healed': False, 'engine': 'meta'}, ensure_ascii=False)}\n\n"
+                return
+
             # Step 3: 推送 SQL
             sql_text = (result.get("sql") or "").replace("\n", " ")
             yield f"event: sql\ndata: {json.dumps({'sql': sql_text}, ensure_ascii=False)}\n\n"

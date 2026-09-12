@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import GacLogo from '@/components/GacLogo';
 
 interface Metric {
   id: string;
@@ -97,7 +98,7 @@ export default function MetricsPage() {
       {/* 顶部说明 */}
       <div className="content-card p-5 mb-6">
         <div className="flex items-start gap-4">
-          <div className="gac-logo-lg">M</div>
+          <div className="flex-shrink-0"><GacLogo size="lg" /></div>
           <div className="flex-1">
             <h2 className="text-base font-semibold text-gac-gray-900 mb-1">指标库</h2>
             <p className="text-sm text-gac-gray-500 leading-relaxed">

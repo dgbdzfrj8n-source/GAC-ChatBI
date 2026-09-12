@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { menuConfig } from '@/lib/menu';
+import GacLogo from './GacLogo';
 
 export default function Sidebar() {
   const pathname = usePathname();
@@ -11,8 +12,8 @@ export default function Sidebar() {
     <aside className="w-60 bg-white border-r border-gac-gray-200 flex flex-col h-screen flex-shrink-0">
       {/* ====== 顶部 Logo 区 ====== */}
       <div className="h-16 flex items-center px-5 border-b border-gac-gray-200 flex-shrink-0">
-        <div className="gac-logo mr-3">G</div>
-        <div className="leading-tight">
+        <GacLogo size="md" />
+        <div className="ml-3 leading-tight">
           <div className="font-bold text-base text-gac-primary">广汽云 ChatBI</div>
           <div className="text-[11px] text-gac-gray-500 mt-0.5">智能经营分析平台</div>
         </div>
@@ -48,7 +49,7 @@ export default function Sidebar() {
       {/* 底部版本信息 */}
       <div className="px-4 py-3 border-t border-gac-gray-200 flex-shrink-0">
         <div className="text-[11px] text-gac-gray-500 text-center leading-relaxed">
-          <div>v1.7.0 · Sprint 7</div>
+          <div>v1.8.0 · Sprint 8</div>
           <div className="text-gac-primary mt-0.5">广汽集团 · 智能经营团队</div>
         </div>
       </div>
