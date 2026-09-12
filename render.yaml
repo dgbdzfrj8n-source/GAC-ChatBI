@@ -1,0 +1,56 @@
+# =====================================================
+# GAC-ChatBI · Render 蓝图（声明式部署）
+# 推送到 main 分支后，Render 自动检测并部署。
+# =====================================================
+# 使用方法（一次性配置）：
+#   1) Render 控制台 → New → Blueprint → 选本仓库 → Apply
+#   2) 之后每次 git push origin main 都会自动触发部署
+# =====================================================
+
+services:
+  # ============ 后端：FastAPI + DuckDB ============
+  - type: web
+    name: gac-chatbi-api
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    region: oregon
+    healthCheckPath: /api/health
+    autoDeploy: true          # main 推送即自动部署
+    envVars:
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      - key: PYTHONDONTWRITEBYTECODE
+        value: "1"
+      - key: LLM_BASE_URL
+        value: https://api.deepseek.com/v1
+      # LLM_API_KEY 在 Render 控制台手动添加为 Secret File，
+      # 不要把密钥硬编码到 yaml 里。
+      - key: FRONTEND_URL
+        value: https://gac-chat-bi.onrender.com
+
+  # ============ 前端：Next.js 静态导出（output: 'export'）============
+  # 因为 next.config.mjs 里已经设置了 output: 'export'，
+  # 前端产物是纯静态文件，所以用 Static Site 类型最划算也最快。
+  - type: static_site
+    name: gac-chat-bi
+    rootDir: frontend
+    plan: free
+    region: oregon
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./out  # next export 产物目录
+    autoDeploy: true
+    headers:
+      # 让前端调后端时浏览器允许跨域读响应
+      - path: /*
+        name: Cache-Control
+        value: public, max-age=0, must-revalidate
+    routes:
+      # 前端路由 fallback（Next.js 静态导出必备）
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: NODE_VERSION
+        value: "20"

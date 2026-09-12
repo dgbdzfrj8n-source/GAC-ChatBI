@@ -5,7 +5,21 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/)
 [![Next.js 14](https://img.shields.io/badge/Next.js-14.0-black.svg)](https://nextjs.org/)
 [![DuckDB](https://img.shields.io/badge/DuckDB-OLAP-yellow.svg)](https://duckdb.org/)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+![CI](https://github.com/dgbdzfrj8n-source/GAC-ChatBI/actions/workflows/ci.yml/badge.svg)
+
+## 🚀 自动部署
+
+| 平台 | 触发 | 状态 |
+|------|------|------|
+| 前端（`gac-chat-bi`） | Render Static Site · 监听 `main` | https://gac-chat-bi.onrender.com |
+| 后端（`gac-chatbi-api`） | Render Web Service (Docker) · 监听 `main` | https://gac-chatbi-api.onrender.com |
+| CI | GitHub Actions · PR + main 推送 | 自动跑 lint / type-check / build |
+
+**只要你执行 `git push origin main`，Render 会自动重新部署前端 + 后端**，无需任何手动操作。
+完整部署说明见 [`KOYEB_DEPLOY_GUIDE.md`](KOYEB_DEPLOY_GUIDE.md)，声明式配置见 [`render.yaml`](render.yaml)。
+
+---
 
 ## ✨ 核心特性
 
