@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 import Sidebar from '@/components/Sidebar';
 import TopBar from '@/components/TopBar';
+import { BrandProvider } from '@/contexts/BrandContext';
 
 export const metadata: Metadata = {
   title: '广汽云 ChatBI - 智能经营问数 Agent',
@@ -32,22 +33,25 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-screen bg-gac-gray-50">
-        {/* ====== 主体：左侧菜单 + 右侧内容 ====== */}
-        <div className="flex h-screen overflow-hidden">
-          {/* 左侧侧边栏 */}
-          <Sidebar />
+        {/* 品牌上下文（全局状态） */}
+        <BrandProvider>
+          {/* ====== 主体：左侧菜单 + 右侧内容 ====== */}
+          <div className="flex h-screen overflow-hidden">
+            {/* 左侧侧边栏 */}
+            <Sidebar />
 
-          {/* 右侧主区域 */}
-          <div className="flex-1 flex flex-col overflow-hidden">
-            {/* 顶部栏 */}
-            <TopBar />
+            {/* 右侧主区域 */}
+            <div className="flex-1 flex flex-col overflow-hidden">
+              {/* 顶部栏 */}
+              <TopBar />
 
-            {/* 内容区 */}
-            <main className="content-area">
-              <div className="p-6 max-w-[1600px] mx-auto">{children}</div>
-            </main>
+              {/* 内容区 */}
+              <main className="content-area">
+                <div className="p-6 max-w-[1600px] mx-auto">{children}</div>
+              </main>
+            </div>
           </div>
-        </div>
+        </BrandProvider>
       </body>
     </html>
   );

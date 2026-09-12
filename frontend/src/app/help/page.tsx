@@ -101,14 +101,14 @@ export default function HelpPage() {
           <span className="w-1 h-4 bg-gac-primary rounded mr-2"></span>
           ❓ 常见问题
         </h3>
-        <div className="space-y-3">
+        <div className="space-y-2">
           {FAQS.map((f, i) => (
-            <details key={i} className="group">
-              <summary className="cursor-pointer px-3 py-2.5 bg-gac-gray-50 hover:bg-blue-50 rounded-lg text-sm font-medium text-gac-gray-900 list-none flex items-center justify-between">
+            <details key={i} className="group border border-gac-gray-200 rounded-lg overflow-hidden">
+              <summary className="cursor-pointer px-4 py-3 bg-white hover:bg-gac-gray-50 text-sm font-medium text-gac-gray-900 list-none flex items-center justify-between">
                 <span>{f.q}</span>
-                <span className="text-gac-gray-400 group-open:rotate-180 transition-transform">▼</span>
+                <span className="text-gac-gray-400 group-open:rotate-180 transition-transform flex-shrink-0 ml-2">▼</span>
               </summary>
-              <div className="px-3 py-2.5 text-sm text-gac-gray-700 leading-relaxed">
+              <div className="px-4 py-3 text-sm text-gac-gray-700 leading-relaxed bg-gac-gray-50 border-t border-gac-gray-200">
                 {f.a}
               </div>
             </details>

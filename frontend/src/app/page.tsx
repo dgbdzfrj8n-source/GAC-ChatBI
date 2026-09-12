@@ -25,7 +25,7 @@ const USE_STREAMING = true; // Sprint 5.1: 启用 SSE 流式输出
 interface ChartResult {
   query: string;
   thought_steps: string[];
-  sql: string;
+  sql: string | null;
   success: boolean;
   data: Record<string, unknown>[];
   columns: string[];
@@ -37,6 +37,7 @@ interface ChartResult {
   healed?: boolean;
   engine: string;
   error: string | null;
+  is_meta_answer?: boolean;  // 闲聊/元问题兜底标识
 }
 
 // Mock 预置对话数据
@@ -405,7 +406,7 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)]">
+    <div className="flex flex-col h-full">
       {/* 主对话区 */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* 顶部：引导词 + 大屏入口 */}
@@ -423,8 +424,8 @@ export default function ChatPage() {
           </a>
         </div>
 
-        {/* 对话流 */}
-        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+        {/* 对话流（可滚动区域） */}
+        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4 scrollbar-thin">
           {messages.length === 0 && (
             <div className="text-center py-16">
               <div className="text-5xl mb-4">🚗</div>
@@ -433,7 +434,7 @@ export default function ChatPage() {
                 基于集团真实经营数据，AI 驱动的自然语言问数与可视化分析助手。
                 <br />
                 <span className="text-emerald-600 font-medium">
-                  Sprint 5 已上线：SSE 流式输出 · SOP 归因引擎 · 管理驾驶舱
+                  Sprint 8 已上线：品牌切换 · AI 闲聊兜底 · SQL 优化
                 </span>
               </p>
             </div>
@@ -452,6 +453,7 @@ export default function ChatPage() {
               data={msg.result?.data}
               viewMode={viewMode}
               onViewModeChange={setViewMode}
+              isMetaAnswer={msg.result?.is_meta_answer}
             />
           ))}
 
@@ -476,9 +478,9 @@ export default function ChatPage() {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* 底部操作栏 */}
+        {/* 底部操作栏 → sticky */}
         {currentResult && (
-          <div className="px-6 pb-2 flex items-center gap-2 text-xs text-gray-500 border-t border-gray-200 pt-3 bg-white">
+          <div className="px-6 pb-2 flex items-center gap-2 text-xs text-gray-500 border-t border-gray-200 pt-3 bg-white flex-shrink-0">
             <button
               onClick={() => setShowSql(!showSql)}
               className="flex items-center gap-1 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors border border-gray-200"
@@ -531,43 +533,41 @@ export default function ChatPage() {
             </button>
           </div>
         )}
+      </div>
 
-        {/* SQL 抽屉 */}
-        {showSql && currentResult?.sql && (
-          <div className="px-6 pb-3">
-            <SqlDrawer sql={currentResult.sql} onClose={() => setShowSql(false)} />
-          </div>
-        )}
+      {/* SQL 抽屉 → 固定浮层，不占布局 */}
+      {showSql && currentResult?.sql && (
+        <SqlDrawer sql={currentResult.sql} onClose={() => setShowSql(false)} />
+      )}
 
-        {/* 输入框 */}
-        <div className="px-6 pb-6">
-          <div className="relative">
-            <textarea
-              ref={inputRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="输入您的经营分析问题，例如：2025年3月埃安销量与预算达成率是多少？"
-              className="w-full resize-none rounded-2xl border border-gray-200 bg-white px-4 py-3 pr-12 text-sm shadow-sm
-                         focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent
-                         placeholder:text-gray-400"
-              rows={1}
-              style={{ maxHeight: "120px" }}
-            />
-            <button
-              onClick={handleSend}
-              disabled={!input.trim() || loading}
-              className="absolute right-2 bottom-2 w-9 h-9 rounded-xl bg-emerald-500 hover:bg-emerald-600
-                         disabled:opacity-40 disabled:cursor-not-allowed
-                         flex items-center justify-center text-white transition-all active:scale-95"
-            >
-              <Send className="w-4 h-4" />
-            </button>
-          </div>
-          <p className="text-center text-xs text-gray-400 mt-2">
-            Shift+Enter 换行 · Enter 发送 · SSE 流式输出 · 深度归因 SOP · 驾驶舱大屏
-          </p>
+      {/* 输入框 → 固定在底部 */}
+      <div className="px-6 pb-6 flex-shrink-0 bg-white border-t border-gray-100 pt-4">
+        <div className="relative">
+          <textarea
+            ref={inputRef}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="输入您的经营分析问题，例如：2025年3月埃安销量与预算达成率是多少？"
+            className="w-full resize-none rounded-2xl border border-gray-200 bg-white px-4 py-3 pr-12 text-sm shadow-sm
+                       focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent
+                       placeholder:text-gray-400"
+            rows={1}
+            style={{ maxHeight: "120px" }}
+          />
+          <button
+            onClick={handleSend}
+            disabled={!input.trim() || loading}
+            className="absolute right-2 bottom-2 w-9 h-9 rounded-xl bg-emerald-500 hover:bg-emerald-600
+                       disabled:opacity-40 disabled:cursor-not-allowed
+                       flex items-center justify-center text-white transition-all active:scale-95"
+          >
+            <Send className="w-4 h-4" />
+          </button>
         </div>
+        <p className="text-center text-xs text-gray-400 mt-2">
+          Shift+Enter 换行 · Enter 发送 · SSE 流式输出 · 深度归因 SOP · 驾驶舱大屏
+        </p>
       </div>
 
       {/* Bad Case 弹窗 */}

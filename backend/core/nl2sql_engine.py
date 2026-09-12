@@ -128,14 +128,63 @@ class Nl2SqlEngine:
                 return v
         return None
 
+    # 闲聊/元问题触发词
+    SMART_TALK_TRIGGERS = [
+        "你是谁", "你叫什么", "介绍一下", "关于你",
+        "怎么用", "如何使用", "帮助", "功能介绍",
+        "你能做什么", "what can you do", "who are you",
+        "hello", "hi", "你好", "您好", "请问",
+        "这个系统", "这个平台", "chatbi",
+    ]
+
+    META_ANSWER = """我是**广汽云 ChatBI**，广汽集团智能经营分析团队的 AI 问数助手。
+
+**我能帮你做什么：**
+• 📊 查询各品牌（埃安/传祺/昊铂）的销量、营收、达成率
+• 💰 分析营销渠道投放与 CPL（获客成本）
+• 🚗 查看客流转化率与漏斗分析
+• 📈 生成趋势图与对比报表
+• 🔍 深度归因：定位销量波动的根因
+
+**快捷提问示例：**
+• "2025年3月埃安销量与预算达成率"
+• "各品牌总交付量与总营收"
+• "抖音渠道 CPL 排名"
+• "昊铂 GT 与 HT 客流转化率对比"
+
+直接输入您想了解的问题即可！😊"""
+
+    def _is_meta_question(self, query: str) -> bool:
+        """判断是否为闲聊/元问题"""
+        q = query.strip().lower()
+        return any(t in q for t in self.SMART_TALK_TRIGGERS)
+
     def ask(self, query: str, force_mock: bool = False) -> Dict[str, Any]:
         """
         核心问数调度主流程：
-        1. 剪枝提取 Schema
+        1. 语义剪枝
         2. 生成 SQL（API 或 Mock）
         3. AST 检查与执行
         4. 报错 1 次自愈重试
         """
+        # 0. 闲聊/元问题兜底
+        if self._is_meta_question(query):
+            return {
+                "query": query,
+                "thought_steps": ["命中闲聊/元问题，跳过 SQL 生成"],
+                "sql": None,
+                "success": True,
+                "data": [],
+                "columns": [],
+                "row_count": 0,
+                "execution_time_ms": 0,
+                "error": None,
+                "summary_insight": self.META_ANSWER,
+                "healed": False,
+                "engine": "meta",
+                "is_meta_answer": True,
+            }
+
         # 1. 语义剪枝
         link_res = self.schema_linker.link(query)
         thought_steps = list(link_res["thought_steps"])

@@ -18,7 +18,7 @@ export default function Sidebar() {
         </div>
       </div>
 
-      {/* ====== 菜单区 ====== */}
+      {/* 菜单区 */}
       <nav className="flex-1 overflow-y-auto py-2 scrollbar-thin">
         {menuConfig.map((group) => (
           <div key={group.id} className="mb-2">
@@ -45,18 +45,11 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      {/* ====== 底部信息 ====== */}
-      <div className="p-4 border-t border-gac-gray-200 flex-shrink-0">
-        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-3">
-          <div className="flex items-center mb-2">
-            <span className="status-dot status-online"></span>
-            <span className="text-xs font-medium text-gac-gray-700">系统运行正常</span>
-          </div>
-          <div className="text-[11px] text-gac-gray-500 leading-relaxed">
-            <div>Sprint 7 已上线</div>
-            <div>v1.7.0 · 2026.09</div>
-            <div className="mt-1 text-gac-primary font-medium">广汽集团 · 智能经营团队</div>
-          </div>
+      {/* 底部版本信息 */}
+      <div className="px-4 py-3 border-t border-gac-gray-200 flex-shrink-0">
+        <div className="text-[11px] text-gac-gray-500 text-center leading-relaxed">
+          <div>v1.7.0 · Sprint 7</div>
+          <div className="text-gac-primary mt-0.5">广汽集团 · 智能经营团队</div>
         </div>
       </div>
     </aside>

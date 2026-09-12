@@ -1,5 +1,7 @@
 'use client';
 
+import { useState } from 'react';
+
 interface Metric {
   id: string;
   code: string;
@@ -84,6 +86,12 @@ const METRICS: Metric[] = [
 const DOMAINS = ['全部', '整车销售', '经营财务', '市场营销', '渠道经营'];
 
 export default function MetricsPage() {
+  const [activeDomain, setActiveDomain] = useState('全部');
+
+  const filtered = activeDomain === '全部'
+    ? METRICS
+    : METRICS.filter((m) => m.domain === activeDomain);
+
   return (
     <div>
       {/* 顶部说明 */}
@@ -104,25 +112,26 @@ export default function MetricsPage() {
         </div>
       </div>
 
-      {/* 域分类 */}
+      {/* 域分类 Tab 切换 */}
       <div className="flex items-center gap-2 mb-4">
-        {DOMAINS.map((d, i) => (
-          <span
+        {DOMAINS.map((d) => (
+          <button
             key={d}
+            onClick={() => setActiveDomain(d)}
             className={
-              i === 0
+              activeDomain === d
                 ? 'px-3 py-1 bg-gac-primary text-white rounded-full text-xs font-medium'
-                : 'px-3 py-1 bg-white text-gac-gray-700 border border-gac-gray-200 rounded-full text-xs font-medium'
+                : 'px-3 py-1 bg-white text-gac-gray-700 border border-gac-gray-200 rounded-full text-xs font-medium hover:bg-gac-gray-100'
             }
           >
             {d}
-          </span>
+          </button>
         ))}
       </div>
 
       {/* 指标卡片 */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {METRICS.map((m) => (
+        {filtered.map((m) => (
           <div key={m.id} className="content-card p-5 hover:shadow-md transition-shadow">
             {/* 顶部：图标 + 编号 */}
             <div className="flex items-start justify-between mb-4">

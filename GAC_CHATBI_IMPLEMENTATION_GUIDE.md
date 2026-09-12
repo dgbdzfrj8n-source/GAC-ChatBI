@@ -1324,3 +1324,633 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 ---
 
 *本章将驱动后续 UI 升级工作，所有功能保留，向企业级 BI 工作台演进！*
+
+---
+
+## 十四、Sprint 8：功能完善与体验优化
+
+### 14.1 用户反馈问题汇总（2026.09.12）
+
+根据 https://gac-chat-bi.onrender.com 线上反馈，整理 **18 个问题/需求**，分为 P0 / P1 / P2 三级：
+
+#### P0 🔴 紧急修复（影响核心体验）
+
+| # | 问题 | 原因 | 修复方案 |
+|---|------|------|---------|
+| 1 | 顶部"切换品牌"点击无响应 | TopBar 的 button 未绑定事件 | 接入品牌状态管理（React Context / Zustand） |
+| 2 | 问"你是谁"直接生成数据 | System Prompt 未做兜底意图识别 | 增加"闲聊/元问题"兜底回复 |
+| 3 | 输入框被 SQL 抽屉挤下去 | SQL 抽屉用了正常流布局 | 改为 fixed 或 sticky 定位 |
+| 4 | SQL 抽屉横向滚动 + 数据看不懂 | SQL drawer 太宽 + 无格式化 | 改用代码高亮 + 行号 + 折叠 + 分页 |
+| 5 | 快捷提问数据太少 | MOCK_WELCOME 固定几条 | 扩充到 15+ 条，覆盖更多场景 |
+
+#### P1 🟡 重要功能（提升可用性）
+
+| # | 问题 | 修复方案 |
+|---|------|---------|
+| 6 | 报表中心无法查看详情 | 改为真实可点击查看（调用 /api/query） |
+| 7 | 指标库 Tab 无法切换 | 实现 domain 筛选逻辑 |
+| 8 | 智能对话缺少 AI 洞察 / 策略建议板块 | 新增右侧分析面板（Sprint 5.3 SOP 接入） |
+| 9 | 缺少新手引导页面 | 参考 Netlify ChatBI 设计引导流程 |
+| 10 | 深色主题切换无效 | 实现完整 dark mode CSS 变量 |
+| 11 | 帮助中心无法点击 | FAQ details/summary 修复 |
+
+#### P2 🟢 增强功能（企业级能力）
+
+| # | 功能 | 说明 |
+|---|------|------|
+| 12 | 数据管理（导入/导出 CSV） | 新增数据管理页面 |
+| 13 | 语义管理层 | 参考 Netlify ChatBI semantic-layer |
+| 14 | 角色权限（管理者/分析师/产品经理） | 新增权限配置 |
+| 15 | 成员管理 | 新增成员配置页面 |
+| 16 | 消息通知系统 | 新增通知中心 |
+| 17 | 演示模式 | 新增引导式演示功能 |
+| 18 | 指标维护入口 | 在指标库增加"添加指标"按钮 |
+
+---
+
+### 14.2 P0 修复详细设计
+
+#### 14.2.1 品牌切换功能（问题 1）
+
+**目标**：顶部"切换品牌"点击后弹窗选择，选中后所有数据按品牌过滤。
+
+**数据流**：
+```
+用户点击 → BrandSelector 弹窗 → 选择品牌（全部/埃安/传祺/昊铂）
+→ 更新 GlobalContext.brand → 触发所有组件重新查询
+```
+
+**实现**：
+
+```tsx
+// frontend/src/contexts/BrandContext.tsx
+'use client';
+import { createContext, useContext, useState, ReactNode } from 'react';
+
+export type Brand = '全部' | '广汽埃安' | '广汽传祺' | '昊铂';
+
+interface BrandContextType {
+  brand: Brand;
+  setBrand: (b: Brand) => void;
+}
+
+const BrandContext = createContext<BrandContextType>({
+  brand: '全部',
+  setBrand: () => {},
+});
+
+export function BrandProvider({ children }: { children: ReactNode }) {
+  const [brand, setBrand] = useState<Brand>('全部');
+  return (
+    <BrandContext.Provider value={{ brand, setBrand }}>
+      {children}
+    </BrandContext.Provider>
+  );
+}
+
+export const useBrand = () => useContext(BrandContext);
+```
+
+**UI 组件**：
+
+```tsx
+// frontend/src/components/BrandSelector.tsx
+'use client';
+import { useBrand, Brand } from '@/contexts/BrandContext';
+
+const BRANDS: Brand[] = ['全部', '广汽埃安', '广汽传祺', '昊铂'];
+
+export default function BrandSelector() {
+  const { brand, setBrand } = useBrand();
+  return (
+    <select
+      value={brand}
+      onChange={(e) => setBrand(e.target.value as Brand)}
+      className="text-sm border border-gac-gray-200 rounded-lg px-2 py-1
+                 text-gac-gray-600 bg-white focus:outline-none
+                 focus:ring-2 focus:ring-gac-primary"
+    >
+      {BRANDS.map((b) => <option key={b} value={b}>{b}</option>)}
+    </select>
+  );
+}
+```
+
+**修改 TopBar**：将 `切换品牌` button 替换为 `<BrandSelector />`
+
+**全局接入**：在 `layout.tsx` 套 `<BrandProvider>`
+
+---
+
+#### 14.2.2 闲聊/元问题兜底（问题 2）
+
+**目标**：用户问"你是谁"、"怎么用"等元问题时，不生成 SQL，直接回复。
+
+**System Prompt 增强**：
+
+```python
+# backend/core/prompt.py
+
+SMART_TALK_TRIGGERS = [
+    "你是谁", "你叫什么", "介绍一下自己",
+    "怎么用", "如何使用", "帮助",
+    "功能", "你能做什么", "what can you do",
+    "hello", "hi", "你好", "请问",
+]
+
+META_ANSWER = """我是**广汽云 ChatBI**，广汽集团智能经营分析团队的 AI 问数助手。
+
+**我能帮你做什么：**
+• 📊 查询各品牌（埃安/传祺/昊铂）的销量、营收、达成率
+• 💰 分析营销渠道投放与 CPL
+• 🚗 查看客流转化率与漏斗
+• 📈 生成趋势图与对比报表
+
+**快捷提问示例：**
+• "2025年3月埃安销量与预算达成率"
+• "各品牌总交付量与总营收"
+• "抖音渠道 CPL 排名"
+
+直接输入您想了解的问题即可！"""
+
+def should_answer_meta(query: str) -> bool:
+    """判断是否为闲聊/元问题"""
+    q = query.lower().strip()
+    return any(t in q for t in SMART_TALK_TRIGGERS)
+
+# 在 nl2sql_engine.py 中：
+if should_answer_meta(user_query):
+    return {
+        "success": True,
+        "is_meta_answer": True,
+        "answer": META_ANSWER,
+        # 不执行 SQL
+    }
+```
+
+**前端适配**：
+
+```tsx
+// ChatMessage.tsx 新增 is_meta_answer 渲染
+{msg.is_meta_answer && (
+  <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+    <div className="prose prose-sm max-w-none" dangerouslySetInnerHTML={{__html: msg.content}} />
+  </div>
+)}
+```
+
+---
+
+#### 14.2.3 SQL 抽屉体验优化（问题 3 & 4）
+
+**目标**：
+1. 输入框 sticky 固定在底部，不被挤出
+2. SQL 抽屉改为代码编辑器样式，支持复制/折叠/格式化
+
+**输入框 sticky**：
+
+```tsx
+// page.tsx
+<div className="flex flex-col h-[calc(100vh-4rem)]">
+  <div className="flex-1 overflow-y-auto px-6 py-4 ...">  {/* 对话流可滚动 */}
+    {messages}
+    {loading}
+    <div ref={messagesEndRef} />
+  </div>
+
+  {/* 底部操作栏 → sticky */}
+  {currentResult && (
+    <div className="px-6 pb-2 flex items-center gap-2 ... border-t border-gray-200 pt-3 bg-white flex-shrink-0">
+      ...
+    </div>
+  )}
+
+  {/* SQL 抽屉 → fixed 浮层，不占布局 */}
+  {showSql && currentResult?.sql && (
+    <SqlDrawer sql={currentResult.sql} onClose={() => setShowSql(false)} />
+  )}
+
+  {/* 输入框 → fixed 固定在底部 */}
+  <div className="px-6 pb-6 flex-shrink-0">
+    <textarea ... />
+    <p className="text-center ...">...</p>
+  </div>
+</div>
+```
+
+**SQL 抽屉重新设计**（`SqlDrawer.tsx`）：
+
+```tsx
+// 新增功能：
+// 1. 代码高亮（prism.js）
+// 2. 行号显示
+// 3. 一键复制
+// 4. SQL 解释（中文字段说明）
+// 5. 执行计划折叠
+// 6. 分页展示（如果 SQL 很长）
+```
+
+**SQL 解释功能**（后端新增）：
+
+```python
+# backend/api/routes/explain_sql.py
+FIELD_DESCRIPTIONS = {
+    "brand_name": "品牌名称（广汽埃安/广汽传祺/昊铂）",
+    "actual_units": "实际交付量（辆）",
+    "target_units": "预算目标（辆）",
+    "fulfillment_rate_pct": "达成率（%）",
+    "transaction_price": "成交价（元）",
+    "region_code": "大区编码（华东/华南/华北/华中/西南/西北/东北）",
+    # ... 更多字段
+}
+
+def explain_sql_columns(sql: str, columns: list[str]) -> dict[str, str]:
+    """返回 {字段名: 中文解释}"""
+    return {col: FIELD_DESCRIPTIONS.get(col, "未知字段") for col in columns}
+```
+
+---
+
+#### 14.2.4 快捷提问数据扩充（问题 5）
+
+**目标**：扩充到 15+ 条，覆盖所有场景（整车销售 / 经营财务 / 市场营销 / 渠道经营）。
+
+**新增快捷提问**（`SuggestionPills.tsx` 改造）：
+
+```tsx
+const SUGGESTIONS = {
+  // 整车销售（6条）
+  "🔥 2025年3月埃安销量与预算达成率": "广汽埃安 2025-03 销量达成率",
+  "📊 各品牌总交付量与总营收": "各品牌总交付量",
+  "🚗 传祺各车型在华东大区的销量": "传祺 华东大区 销量",
+  "📈 2025年Q1各月交付量走势": "Q1 各月交付量",
+  "🏆 昊铂 GT 与昊铂 HT 客流转化率对比": "昊铂 转化率",
+  "📉 销量环比下降最多的品牌": "销量环比",
+
+  // 经营财务（3条）
+  "💰 各品牌单车成交均价对比": "单车成交均价",
+  "📉 营销费用占比最高的渠道": "营销费用占比",
+  "💵 毛利率最高的是哪个车型": "毛利率",
+
+  // 市场营销（3条）
+  "💰 各营销渠道投放支出与获客成本 CPL 排名": "渠道 CPL 排名",
+  "📢 抖音线索量占总线索量多少": "抖音 线索量",
+  "🎯 各渠道 ROI 对比": "渠道 ROI",
+
+  // 渠道经营（3条）
+  "🏪 各门店客流成交转化率排名": "门店转化率",
+  "📊 客流漏斗：进店→留资→试驾→成交": "客流漏斗",
+  "⚠️ 转化率低于 10% 的门店": "低转化门店",
+};
+```
+
+---
+
+### 14.3 P1 功能详细设计
+
+#### 14.3.1 报表中心真实化（问题 6）
+
+**改造**：报表卡片点击后，调用后端 API 执行真实查询，返回图表。
+
+```tsx
+// reports/page.tsx
+const REPORT_CONFIGS = {
+  'budget-fulfillment': {
+    query: '查询各品牌达成率',
+    api: '/api/query',
+    chart_type: 'bar',
+  },
+  'sales-attribution': {
+    query: '查询销量波动最大的因素',
+    api: '/api/sop/analyze',
+    chart_type: 'waterfall',
+  },
+  // ...
+};
+```
+
+---
+
+#### 14.3.2 指标库 Tab 切换（问题 7）
+
+```tsx
+// metrics/page.tsx
+const [activeDomain, setActiveDomain] = useState('全部');
+const filtered = METRICS.filter(
+  m => activeDomain === '全部' || m.domain === activeDomain
+);
+```
+
+---
+
+#### 14.3.3 AI 洞察 + 策略建议板块（问题 8）
+
+**目标**：对话结果页新增右侧面板：
+- 📋 AI 洞察（自动归因）
+- 💡 策略建议（基于数据）
+- 📄 报告生成（可导出 PDF）
+
+**布局**：
+
+```
+┌──────────────────────────────────────────────────────┐
+│  对话流（左侧 65%）   │   分析面板（右侧 35%）       │
+│                      │                             │
+│  💬 User Query       │   📋 AI 洞察               │
+│                      │   "埃安销量下降是因为..."   │
+│  📊 Chart            │                             │
+│                      │   💡 策略建议               │
+│  💬 Assistant        │   "建议加大华南投放..."     │
+│                      │                             │
+│                      │   📄 生成报告               │
+│                      │   [导出 PDF] [存草稿箱]   │
+└──────────────────────────────────────────────────────┘
+```
+
+**实现**：在 `page.tsx` 新增右侧 `<AnalysisPanel>` 组件，通过 SOP API 获取洞察。
+
+---
+
+#### 14.3.4 深色主题（问题 10）
+
+**方案**：Tailwind dark mode + CSS 变量切换。
+
+```tsx
+// settings/page.tsx
+const setTheme = (theme: 'light' | 'dark' | 'auto') => {
+  if (theme === 'dark') {
+    document.documentElement.classList.add('dark');
+  } else {
+    document.documentElement.classList.remove('dark');
+  }
+  localStorage.setItem('theme', theme);
+};
+```
+
+**dark mode CSS**：
+
+```css
+@media (prefers-color-scheme: dark) {
+  :root {
+    --gac-primary: #3b82f6;
+    --gac-gray-50: #0f172a;
+    --gac-gray-100: #1e293b;
+    --gac-gray-200: #334155;
+    /* ... */
+  }
+}
+```
+
+---
+
+#### 14.3.5 帮助中心可点击（问题 11）
+
+**目标**：FAQ details/summary 改为可展开的折叠面板。
+
+```tsx
+// help/page.tsx
+{FAQS.map((f, i) => (
+  <details key={i} className="group border border-gac-gray-200 rounded-lg overflow-hidden">
+    <summary className="cursor-pointer px-4 py-3 bg-gac-gray-50 hover:bg-gac-gray-100 font-medium text-sm">
+      {f.q}
+    </summary>
+    <div className="px-4 py-3 text-sm text-gac-gray-700 bg-white">
+      {f.a}
+    </div>
+  </details>
+))}
+```
+
+---
+
+### 14.4 P2 功能详细设计
+
+#### 14.4.1 数据管理（问题 12）
+
+**页面**：`/data-management`
+
+**功能**：
+- CSV 导入（支持 fact_sales / fact_marketing / fact_traffic）
+- 导入进度条 + 预览
+- 导入历史记录
+- CSV 导出
+
+**后端**：
+
+```python
+# backend/api/routes/data_management.py
+@router.post("/api/data/import")
+async def import_csv(file: UploadFile, table: str):
+    """上传 CSV 并导入 DuckDB"""
+    # 1. 验证文件类型
+    # 2. 解析 CSV
+    # 3. 写入 DuckDB（追加或覆盖）
+    # 4. 返回影响行数
+
+@router.get("/api/data/export")
+async def export_csv(table: str, format: str = "csv"):
+    """导出 DuckDB 表为 CSV"""
+    # 1. 查询数据
+    # 2. 生成 CSV
+    # 3. 返回下载链接
+```
+
+**前端**：
+
+```tsx
+// frontend/src/app/data-management/page.tsx
+// 1. 文件上传组件
+// 2. 导入进度条
+// 3. 数据预览表格
+// 4. 导入历史
+// 5. 导出按钮
+```
+
+---
+
+#### 14.4.2 语义管理层（问题 13）
+
+**参考**：https://saas-chaibi.netlify.app/semantic-layer
+
+**页面**：`/semantic-layer`
+
+**功能**：
+- 指标语义维护（名称 / 描述 / 计算公式 / 口径）
+- 维度语义维护（地区 / 品牌 / 渠道等）
+- 同义词配置（"销量" = "交付量" = "sales"）
+- 血缘关系图
+
+```tsx
+// frontend/src/app/semantic-layer/page.tsx
+interface SemanticItem {
+  id: string;
+  name: string;
+  type: 'metric' | 'dimension' | 'synonym';
+  definition: string;
+  formula?: string;
+  synonyms?: string[];
+}
+```
+
+---
+
+#### 14.4.3 角色权限（问题 14）
+
+**角色**：
+| 角色 | 权限 |
+|------|------|
+| 管理者 | 全部功能 + 成员管理 + 数据导入 |
+| 数据分析师 | 智能对话 + 驾驶舱 + 报表 + 指标库 |
+| AI 产品经理 | 智能对话 + 报表 + 指标管理 |
+| 普通员工 | 智能对话（只读） |
+
+**实现**：
+```tsx
+// frontend/src/contexts/AuthContext.tsx
+interface User {
+  id: string;
+  name: string;
+  role: 'admin' | 'analyst' | 'pm' | 'user';
+}
+
+const PERMISSIONS = {
+  admin: ['*'],
+  analyst: ['chat', 'dashboard', 'reports', 'metrics'],
+  pm: ['chat', 'reports', 'metrics-manage'],
+  user: ['chat-readonly'],
+};
+```
+
+---
+
+#### 14.4.4 成员管理（问题 15）
+
+**页面**：`/members`
+
+**功能**：
+- 成员列表（头像 / 姓名 / 角色 / 状态）
+- 添加成员（邮箱 + 角色）
+- 修改角色
+- 禁用/启用
+
+---
+
+#### 14.4.5 消息通知（问题 17）
+
+**功能**：
+- 异常数据预警（如 CPL 超过阈值）
+- 报表订阅通知
+- 系统公告
+
+**UI**：
+```tsx
+// TopBar 通知图标
+const [unread, setUnread] = useState(3);
+<button className="relative ...">
+  🔔
+  {unread > 0 && <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] rounded-full w-4 h-4 flex items-center justify-center">{unread}</span>}
+</button>
+```
+
+---
+
+#### 14.4.6 演示模式（问题 18）
+
+**功能**：引导式演示，按步骤展示核心功能。
+
+**流程**：
+1. 点击"演示模式"按钮
+2. 弹出引导遮罩
+3. 依次高亮：快捷提问 → 输入框 → 查看 SQL → 驾驶舱
+4. 每步有提示文字
+5. 可跳过 / 重播
+
+**实现**：使用 `react-joyride` 库。
+
+```tsx
+// frontend/src/components/OnboardingTour.tsx
+const STEPS = [
+  {
+    target: '.suggestion-pills',
+    content: '点击快捷提问，快速体验核心查询',
+    placement: 'bottom',
+  },
+  {
+    target: '.chat-input',
+    content: '在这里输入您想查询的经营数据',
+    placement: 'top',
+  },
+  // ...
+];
+```
+
+---
+
+### 14.5 Sprint 8 落地排期
+
+| Day | 任务 | 优先级 | 工时 |
+|-----|------|--------|------|
+| **Day 1** | 14.2.1 品牌切换 | 🔴 P0 | 1h |
+| **Day 1** | 14.2.2 闲聊兜底 | 🔴 P0 | 0.5h |
+| **Day 1** | 14.2.3 SQL 抽屉优化 | 🔴 P0 | 2h |
+| **Day 1** | 14.2.4 快捷提问扩充 | 🔴 P0 | 0.5h |
+| **Day 1** | 14.2.5 修复右下角（已完成） | ✅ | - |
+| **Day 2** | 14.3.1 报表中心真实化 | 🟡 P1 | 2h |
+| **Day 2** | 14.3.2 指标库 Tab 切换 | 🟡 P1 | 1h |
+| **Day 2** | 14.3.3 AI 洞察面板 | 🟡 P1 | 3h |
+| **Day 2** | 14.3.4 深色主题 | 🟡 P1 | 2h |
+| **Day 3** | 14.3.5 帮助中心可点击 | 🟡 P1 | 0.5h |
+| **Day 3** | 14.3.6 新手引导 | 🟡 P1 | 2h |
+| **Day 3** | 14.4.1 数据管理 | 🟢 P2 | 3h |
+| **Day 3** | 14.4.2 语义管理层 | 🟢 P2 | 3h |
+| **Day 4** | 14.4.3 角色权限 | 🟢 P2 | 2h |
+| **Day 4** | 14.4.4 成员管理 | 🟢 P2 | 2h |
+| **Day 4** | 14.4.5 消息通知 | 🟢 P2 | 2h |
+| **Day 4** | 14.4.6 演示模式 | 🟢 P2 | 2h |
+| **Day 5** | 联调测试 + 部署 | — | 4h |
+
+**预计工期**：5 天（按每天 6h 工作量）
+
+---
+
+### 14.6 Sprint 8 验收 Checklist
+
+```text
+[ ] P0-1 顶部切换品牌可用，数据按品牌过滤
+[ ] P0-2 问"你是谁"直接回复，不生成 SQL
+[ ] P0-3 输入框固定底部，SQL 抽屉不挤压布局
+[ ] P0-4 SQL 抽屉有代码高亮、行号、字段解释
+[ ] P0-5 快捷提问 ≥ 15 条，覆盖 4 大业务域
+
+[ ] P1-1 报表中心可点击查看真实图表
+[ ] P1-2 指标库可按 domain Tab 切换
+[ ] P1-3 智能对话右侧有 AI 洞察 + 策略建议
+[ ] P1-4 深色主题切换生效
+[ ] P1-5 帮助中心 FAQ 可展开
+
+[ ] P2-1 数据管理页面：CSV 导入/导出
+[ ] P2-2 语义管理层：指标/维度/同义词配置
+[ ] P2-3 角色权限：4 种角色菜单可见性控制
+[ ] P2-4 成员管理：增删改查
+[ ] P2-5 消息通知：铃铛图标 + 下拉列表
+[ ] P2-6 演示模式：JoyRide 引导流程
+
+[ ] 部署 URL: https://gac-chat-bi.onrender.com
+[ ] 文档已更新（本章 + Sprint 7）
+```
+
+---
+
+### 14.7 技术债务与优化点
+
+| 问题 | 优化方案 | 优先级 |
+|------|---------|--------|
+| 全局状态分散 | 引入 Zustand 统一管理 brand/user/theme | 🟡 |
+| API 分散 | 重构为 tRPC 或统一 API Client | 🟡 |
+| 组件重复 | 提取公共组件：DataTable / ChartCard / Modal | 🟢 |
+| 测试缺失 | 补充 Jest + React Testing Library | 🟢 |
+
+---
+
+*本章将驱动 Sprint 8 落地实施，所有需求已拆解为可执行任务！*
+

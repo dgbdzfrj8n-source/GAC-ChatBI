@@ -1,14 +1,42 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 export default function SettingsPage() {
   const [apiUrl, setApiUrl] = useState(
-    process.env.NEXT_PUBLIC_API_URL || 'https://gac-chatbi-api.onrender.com'
+    typeof window !== 'undefined'
+      ? (localStorage.getItem('apiUrl') || 'https://gac-chatbi-api.onrender.com')
+      : 'https://gac-chatbi-api.onrender.com'
   );
   const [model, setModel] = useState('deepseek-chat');
   const [theme, setTheme] = useState('light');
   const [showSql, setShowSql] = useState(true);
+
+  // 初始化主题
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('theme') || 'light';
+    setTheme(savedTheme);
+    if (savedTheme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, []);
+
+  const handleThemeChange = (newTheme: string) => {
+    setTheme(newTheme);
+    localStorage.setItem('theme', newTheme);
+    if (newTheme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  };
+
+  const handleApiUrlChange = (url: string) => {
+    setApiUrl(url);
+    localStorage.setItem('apiUrl', url);
+  };
 
   return (
     <div className="max-w-3xl">
@@ -37,7 +65,7 @@ export default function SettingsPage() {
             <select
               value={model}
               onChange={(e) => setModel(e.target.value)}
-              className="w-full px-3 py-2 border border-gac-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gac-primary"
+              className="w-full px-3 py-2 border border-gac-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gac-primary bg-white"
             >
               <option value="deepseek-chat">DeepSeek Chat（推荐）</option>
               <option value="deepseek-reasoner">DeepSeek Reasoner（深度思考）</option>
@@ -53,8 +81,8 @@ export default function SettingsPage() {
             <input
               type="text"
               value={apiUrl}
-              onChange={(e) => setApiUrl(e.target.value)}
-              className="w-full px-3 py-2 border border-gac-gray-200 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-gac-primary"
+              onChange={(e) => handleApiUrlChange(e.target.value)}
+              className="w-full px-3 py-2 border border-gac-gray-200 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-gac-primary bg-white"
             />
             <p className="text-xs text-gac-gray-500 mt-1.5">
               ⚠️ 修改后需要刷新页面才能生效。
@@ -80,7 +108,7 @@ export default function SettingsPage() {
               ].map((t) => (
                 <button
                   key={t.id}
-                  onClick={() => setTheme(t.id)}
+                  onClick={() => handleThemeChange(t.id)}
                   className={
                     theme === t.id
                       ? 'btn-primary'
@@ -91,6 +119,17 @@ export default function SettingsPage() {
                 </button>
               ))}
             </div>
+            {/* 主题预览 */}
+            {theme === 'dark' && (
+              <div className="mt-3 p-3 bg-slate-900 rounded-lg border border-slate-700">
+                <div className="text-xs text-slate-400 mb-2">深色主题预览：</div>
+                <div className="flex gap-2">
+                  <span className="px-2 py-1 bg-blue-600 text-white rounded text-xs">深色按钮</span>
+                  <span className="px-2 py-1 bg-slate-800 text-slate-300 rounded text-xs border border-slate-600">次要</span>
+                  <span className="px-2 py-1 bg-emerald-600 text-white rounded text-xs">成功</span>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="flex items-center justify-between py-2">
@@ -131,7 +170,7 @@ export default function SettingsPage() {
           </div>
           <div>
             <div className="text-gac-gray-500">当前版本</div>
-            <div className="text-gac-gray-900 font-medium">v1.7.0 (Sprint 7)</div>
+            <div className="text-gac-gray-900 font-medium">v1.8.0 (Sprint 8)</div>
           </div>
           <div>
             <div className="text-gac-gray-500">团队</div>
@@ -143,6 +182,68 @@ export default function SettingsPage() {
           </div>
         </div>
       </div>
+
+      {/* 深色主题全局样式（嵌入） */}
+      <style jsx global>{`
+        /* 深色主题 */
+        .dark {
+          --gac-primary: #3b82f6;
+          --gac-primary-light: #60a5fa;
+          --gac-primary-dark: #1d4ed8;
+          --gac-accent: #ef4444;
+          --gac-gold: #fbbf24;
+          --gac-gray-50: #0f172a;
+          --gac-gray-100: #1e293b;
+          --gac-gray-200: #334155;
+          --gac-gray-300: #475569;
+          --gac-gray-500: #94a3b8;
+          --gac-gray-700: #cbd5e1;
+          --gac-gray-900: #f8fafc;
+        }
+        .dark body,
+        .dark .bg-gac-gray-50 {
+          background-color: #0f172a;
+          color: #f8fafc;
+        }
+        .dark .bg-white {
+          background-color: #1e293b !important;
+        }
+        .dark .text-gac-gray-900,
+        .dark .text-gac-gray-700,
+        .dark .text-gac-gray-500,
+        .dark .text-gac-gray-300 {
+          color: #cbd5e1;
+        }
+        .dark .border-gac-gray-200,
+        .dark .border-gac-gray-100 {
+          border-color: #334155;
+        }
+        .dark .bg-gac-gray-100,
+        .dark .bg-gac-gray-50 {
+          background-color: #1e293b;
+        }
+        .dark .content-card {
+          background-color: #1e293b;
+          border-color: #334155;
+        }
+        .dark .topbar {
+          background-color: #1e293b;
+          border-color: #334155;
+        }
+        .dark aside {
+          background-color: #1e293b;
+          border-color: #334155;
+        }
+        .dark .btn-primary {
+          background-color: #3b82f6;
+        }
+        .dark input,
+        .dark select {
+          background-color: #1e293b;
+          border-color: #334155;
+          color: #f8fafc;
+        }
+      `}</style>
     </div>
   );
 }

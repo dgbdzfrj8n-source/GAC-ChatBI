@@ -2,12 +2,25 @@
 
 import { usePathname } from 'next/navigation';
 import { pageTitleMap } from '@/lib/menu';
+import { useBrand, Brand } from '@/contexts/BrandContext';
+
+const BRANDS: Brand[] = ['全部', '广汽埃安', '广汽传祺', '昊铂'];
 
 export default function TopBar() {
   const pathname = usePathname();
+  const { brand, setBrand } = useBrand();
+
   const pageInfo = pageTitleMap[pathname] ?? {
     title: '广汽云 ChatBI',
     subtitle: '智能经营分析平台',
+  };
+
+  // 品牌对应的 emoji
+  const brandEmoji: Record<Brand, string> = {
+    '全部': '🏢',
+    '广汽埃安': '⚡',
+    '广汽传祺': '🏯',
+    '昊铂': '💎',
   };
 
   return (
@@ -20,15 +33,29 @@ export default function TopBar() {
         <p className="text-xs text-gac-gray-500 mt-0.5">{pageInfo.subtitle}</p>
       </div>
 
-      {/* 右侧：状态 + 用户 */}
-      <div className="flex items-center space-x-4">
+      {/* 右侧：品牌切换 + 状态 + 用户 */}
+      <div className="flex items-center space-x-3">
+        {/* API 状态 */}
         <span className="hidden md:inline-flex text-xs px-3 py-1 bg-emerald-50 text-emerald-700 rounded-full font-medium">
           <span className="status-dot status-online"></span>
           API 正常
         </span>
-        <button className="hidden md:block text-xs px-3 py-1 bg-gac-gray-100 text-gac-gray-700 rounded-full hover:bg-gac-gray-200">
-          🔄 切换品牌
-        </button>
+
+        {/* 品牌切换下拉 */}
+        <div className="flex items-center gap-1.5 bg-gac-gray-100 rounded-lg px-2 py-1">
+          <span className="text-sm">{brandEmoji[brand]}</span>
+          <select
+            value={brand}
+            onChange={(e) => setBrand(e.target.value as Brand)}
+            className="text-sm bg-transparent border-none focus:outline-none cursor-pointer text-gac-gray-700 font-medium"
+          >
+            {BRANDS.map((b) => (
+              <option key={b} value={b}>{b}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* 用户头像 */}
         <div className="flex items-center">
           <div className="w-9 h-9 rounded-full bg-gradient-to-br from-gac-primary to-gac-primary-light text-white flex items-center justify-center font-semibold text-sm border-2 border-gac-accent">
             AI

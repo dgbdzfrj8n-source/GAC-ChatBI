@@ -8,13 +8,14 @@ interface ChatMessageProps {
   role: "user" | "assistant";
   content: string;
   thoughtSteps?: string[];
-  sql?: string;
+  sql?: string | null;
   chartType?: string;
   echartsOption?: Record<string, unknown>;
   columns?: string[];
   data?: Record<string, unknown>[];
   viewMode?: "chart" | "table";
   onViewModeChange?: (mode: "chart" | "table") => void;
+  isMetaAnswer?: boolean;  // 闲聊/元问题兜底标识
 }
 
 export default function ChatMessage({
@@ -27,6 +28,7 @@ export default function ChatMessage({
   data,
   viewMode = "chart",
   onViewModeChange,
+  isMetaAnswer = false,
 }: ChatMessageProps) {
   const [thoughtExpanded, setThoughtExpanded] = useState(false);
   const [localViewMode, setLocalViewMode] = useState<"chart" | "table">(viewMode);
@@ -75,13 +77,29 @@ export default function ChatMessage({
           </details>
         )}
 
-        {/* 经营洞察气泡 */}
-        <div className="bg-white rounded-2xl rounded-tl-sm border border-gray-200 px-4 py-3 shadow-sm mb-3">
-          <p className="text-sm leading-relaxed text-gray-800">{content}</p>
-        </div>
+        {/* 元问题/闲聊回复 */}
+        {isMetaAnswer && (
+          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl rounded-tl-sm px-5 py-4 shadow-sm mb-3">
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                AI
+              </div>
+              <div className="flex-1">
+                <p className="text-sm leading-relaxed text-gray-800 whitespace-pre-wrap">{content}</p>
+              </div>
+            </div>
+          </div>
+        )}
 
-        {/* 数据可视化 */}
-        {data && data.length > 0 && (
+        {/* 经营洞察气泡（非元问题时显示） */}
+        {!isMetaAnswer && (
+          <div className="bg-white rounded-2xl rounded-tl-sm border border-gray-200 px-4 py-3 shadow-sm mb-3">
+            <p className="text-sm leading-relaxed text-gray-800">{content}</p>
+          </div>
+        )}
+
+        {/* 数据可视化（非元问题时显示） */}
+        {!isMetaAnswer && data && data.length > 0 && (
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             {/* Tab 切换 */}
             {onViewModeChange && (
