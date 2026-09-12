@@ -38,6 +38,7 @@ export default function GacLogo({
 }: GacLogoProps) {
   const h = resolveHeight(size);
   const [isDark, setIsDark] = useState(false);
+  const [bust, setBust] = useState('');
 
   useEffect(() => {
     if (!autoTheme) return;
@@ -49,8 +50,14 @@ export default function GacLogo({
     return () => obs.disconnect();
   }, [autoTheme]);
 
-  const lightSrc = '/brand/gac-logo-light.png';
-  const darkSrc = '/brand/gac-logo-dark.png';
+  // 破 CDN / 浏览器缓存：每次挂载加一个 v= 戳。
+  // 部署/刷新页面后保证浏览器拿到的是最新抠过色的 PNG。
+  useEffect(() => {
+    setBust(`?v=${Date.now()}`);
+  }, []);
+
+  const lightSrc = `/brand/gac-logo-light.png${bust}`;
+  const darkSrc = `/brand/gac-logo-dark.png${bust}`;
 
   return (
     <img
