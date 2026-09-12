@@ -631,6 +631,71 @@ async def delete_data(table_name: str):
         raise HTTPException(status_code=500, detail=f"删除失败: {str(e)}")
 
 
+# ============================================================
+# P2-3: 角色身份（前端权限矩阵数据源）
+# ============================================================
+@app.get("/api/roles", tags=["系统"])
+async def list_roles():
+    """列出所有角色 + 权限矩阵（前端按此渲染菜单与守卫）
+
+    权限规则：
+      - executive 高管：驾驶舱/归因/概览
+      - analyst 分析师：全量问数 + 指标库 + 数据管理 + 语义层
+      - product 产品经理：全功能
+      - guest 访客：核心问数 + 驾驶舱（只读）
+    """
+    return {
+        "success": True,
+        "default_role": "product",
+        "roles": [
+            {
+                "id": "executive",
+                "label": "高管视角",
+                "description": "驾驶舱大屏 / 归因报告 / 业务概览",
+                "icon": "👔",
+                "color": "indigo",
+                "badge": "管",
+            },
+            {
+                "id": "analyst",
+                "label": "分析师",
+                "description": "全量问数 + 指标库 + 数据管理 + 语义层",
+                "icon": "📊",
+                "color": "blue",
+                "badge": "分",
+            },
+            {
+                "id": "product",
+                "label": "AI 产品经理",
+                "description": "全功能 + 语义层编辑 + 演示模式",
+                "icon": "🤖",
+                "color": "purple",
+                "badge": "PM",
+            },
+            {
+                "id": "guest",
+                "label": "访客",
+                "description": "核心问数 + 驾驶舱大屏（只读）",
+                "icon": "👤",
+                "color": "gray",
+                "badge": "客",
+            },
+        ],
+        "permissions": {
+            "/":             ["executive", "analyst", "product", "guest"],
+            "/dashboard":    ["executive", "analyst", "product", "guest"],
+            "/reports":      ["executive", "analyst", "product"],
+            "/metrics":      ["executive", "analyst", "product"],
+            "/tables":       ["analyst", "product"],
+            "/data-manager": ["analyst", "product"],
+            "/history":      ["analyst", "product"],
+            "/semantic":     ["product"],
+            "/settings":     ["executive", "analyst", "product"],
+            "/help":         ["executive", "analyst", "product", "guest"],
+        },
+    }
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("api.main:app", host="0.0.0.0", port=8000, reload=True)

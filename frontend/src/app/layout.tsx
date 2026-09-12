@@ -4,6 +4,8 @@ import Sidebar from '@/components/Sidebar';
 import TopBar from '@/components/TopBar';
 import DemoTour from '@/components/DemoTour';
 import { BrandProvider } from '@/contexts/BrandContext';
+import { RoleProvider } from '@/contexts/RoleContext';
+import { PermissionGuard } from '@/components/PermissionGuard';
 
 export const metadata: Metadata = {
   title: '广汽云 ChatBI - 智能经营问数 Agent',
@@ -40,8 +42,10 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-screen bg-gac-gray-50">
-        {/* 品牌上下文（全局状态） */}
-        <BrandProvider>
+        {/* 角色上下文（4 角色权限控制） */}
+        <RoleProvider>
+          {/* 品牌上下文（全局状态） */}
+          <BrandProvider>
           {/* ====== 主体：左侧菜单 + 右侧内容 ====== */}
           <div className="flex h-screen overflow-hidden">
             {/* 左侧侧边栏 */}
@@ -54,11 +58,12 @@ export default function RootLayout({
 
               {/* 内容区（可滚动；聊天页面会用 chat-full 容器覆盖此处的内边距） */}
               <main className="flex-1 overflow-y-auto bg-gac-gray-50">
-                {children}
+                <PermissionGuard>{children}</PermissionGuard>
               </main>
             </div>
           </div>
         </BrandProvider>
+        </RoleProvider>
         {/* P2-6: 演示模式新手引导（首次访问自动触发） */}
         <DemoTour />
       </body>
