@@ -88,7 +88,7 @@ const TABLES: Table[] = [
 
 export default function TablesPage() {
   return (
-    <div>
+    <div className="content-wrap">
       {/* 顶部说明 */}
       <div className="content-card p-5 mb-6">
         <div className="flex items-start gap-4">

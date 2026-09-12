@@ -39,7 +39,7 @@ const GUIDES = [
 
 export default function HelpPage() {
   return (
-    <div className="max-w-4xl">
+    <div className="content-wrap max-w-4xl">
       {/* 顶部说明 */}
       <div className="content-card p-5 mb-6">
         <div className="flex items-start gap-4">

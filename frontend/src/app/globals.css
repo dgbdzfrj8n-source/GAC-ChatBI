@@ -188,6 +188,12 @@
 }
 
 @layer utilities {
+  /* ============ 通用页面容器（带与左侧菜单的间距和内边距） ============ */
+  .content-wrap {
+    @apply p-6 max-w-7xl mx-auto;
+  }
+
+  /* ============ 滚动条 ============ */
   .scrollbar-thin::-webkit-scrollbar {
     width: 4px;
     height: 4px;

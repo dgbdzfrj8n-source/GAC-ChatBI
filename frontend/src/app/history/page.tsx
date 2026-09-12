@@ -79,7 +79,7 @@ export default function HistoryPage() {
     : display.filter((i) => (filter === 'success' ? i.success : !i.success));
 
   return (
-    <div>
+    <div className="content-wrap">
       {/* 顶部说明 */}
       <div className="content-card p-5 mb-6">
         <div className="flex items-start gap-4">

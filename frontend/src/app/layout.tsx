@@ -41,12 +41,12 @@ export default function RootLayout({
             <Sidebar />
 
             {/* 右侧主区域 */}
-            <div className="flex-1 flex flex-col overflow-hidden">
+            <div className="flex-1 flex flex-col overflow-hidden pl-3">
               {/* 顶部栏 */}
               <TopBar />
 
-              {/* 内容区（聊天页面用 flex-col 全高） */}
-              <main className="flex-1 flex flex-col overflow-hidden bg-gac-gray-50">
+              {/* 内容区（可滚动；聊天页面会用 chat-full 容器覆盖此处的内边距） */}
+              <main className="flex-1 overflow-y-auto bg-gac-gray-50">
                 {children}
               </main>
             </div>
