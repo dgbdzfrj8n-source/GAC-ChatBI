@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import GacLogo from '@/components/GacLogo';
+import GacBadge from '@/components/GacBadge';
 
 interface HistoryItem {
   id: string;
@@ -83,7 +83,7 @@ export default function HistoryPage() {
       {/* 顶部说明 */}
       <div className="content-card p-5 mb-6">
         <div className="flex items-start gap-4">
-          <div className="flex-shrink-0"><GacLogo size="lg" /></div>
+          <div className="flex-shrink-0"><GacBadge size="lg" /></div>
           <div className="flex-1">
             <h2 className="text-base font-semibold text-gac-gray-900 mb-1">历史会话</h2>
             <p className="text-sm text-gac-gray-500 leading-relaxed">
