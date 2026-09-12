@@ -105,6 +105,16 @@ export default function ChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // 演示模式结束 → 自动填入示例问句
+  useEffect(() => {
+    const pending = localStorage.getItem('gac-tour-pending-query');
+    if (pending) {
+      localStorage.removeItem('gac-tour-pending-query');
+      setInput(pending);
+      setTimeout(() => inputRef.current?.focus(), 200);
+    }
+  }, []);
+
   /**
    * Sprint 5.1: SSE 流式问数主入口
    */
@@ -500,6 +510,7 @@ export default function ChatPage() {
 
             <button
               onClick={handleSopAnalyze}
+              data-tour="sop-button"
               className="flex items-center gap-1 px-3 py-1.5 rounded-lg hover:bg-purple-50 hover:text-purple-600 hover:border-purple-200 transition-colors border border-gray-200"
               title="Sprint 5.3: 触发四步归因 SOP"
             >
@@ -551,7 +562,7 @@ export default function ChatPage() {
 
       {/* 输入框 → 固定底部 */}
       <div className="flex-shrink-0 px-2 pt-3 pb-2 bg-white border-t border-gray-100">
-        <div className="relative">
+        <div className="relative" data-tour="chat-input">
           <textarea
             ref={inputRef}
             value={input}

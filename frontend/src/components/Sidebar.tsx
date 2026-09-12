@@ -9,7 +9,7 @@ export default function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="w-60 bg-white border-r border-gac-gray-200 flex flex-col h-screen flex-shrink-0 dark:bg-gac-gray-900 dark:border-gac-gray-700">
+    <aside data-tour="sidebar" className="w-60 bg-white border-r border-gac-gray-200 flex flex-col h-screen flex-shrink-0 dark:bg-gac-gray-900 dark:border-gac-gray-700">
       {/* ====== 顶部 Logo 区 ====== */}
       <div className="h-16 flex items-center px-4 border-b border-gac-gray-200 flex-shrink-0 gap-3 dark:border-gac-gray-700">
         <GacLogo size={40} />
@@ -25,8 +25,8 @@ export default function Sidebar() {
 
       {/* 菜单区 */}
       <nav className="flex-1 overflow-y-auto py-2 scrollbar-thin">
-        {menuConfig.map((group) => (
-          <div key={group.id} className="mb-2">
+        {menuConfig.map((group, gi) => (
+          <div key={group.id} className="mb-2" data-tour={`menu-group-${group.id}`}>
             <div className="menu-group-title">
               {group.label}
             </div>
@@ -36,6 +36,7 @@ export default function Sidebar() {
                 <Link
                   key={item.id}
                   href={item.path}
+                  data-tour={`menu-item-${item.id}`}
                   className={isActive ? 'menu-item menu-item-active' : 'menu-item'}
                 >
                   <span className="mr-3 text-base">{item.icon}</span>

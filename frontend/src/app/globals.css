@@ -232,3 +232,35 @@
     @apply bg-gray-400;
   }
 }
+
+/* ============ P2-6 演示模式高亮动画 ============ */
+.tour-highlight-pulse {
+  animation: tour-pulse 1.6s ease-in-out infinite;
+  filter: drop-shadow(0 0 8px rgba(59, 130, 246, 0.6));
+}
+
+@keyframes tour-pulse {
+  0%, 100% {
+    stroke-width: 3;
+    opacity: 1;
+  }
+  50% {
+    stroke-width: 5;
+    opacity: 0.7;
+  }
+}
+
+.tour-tooltip {
+  animation: tour-tooltip-in 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes tour-tooltip-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}

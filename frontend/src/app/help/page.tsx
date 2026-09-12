@@ -49,6 +49,12 @@ export default function HelpPage() {
             <p className="text-sm text-gac-gray-500 leading-relaxed">
               快速上手广汽云 ChatBI，包含使用指南、常见问题与最佳实践。
             </p>
+            <button
+              onClick={() => window.dispatchEvent(new Event('gac-tour-start'))}
+              className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
+            >
+              🎬 重新观看新手引导
+            </button>
           </div>
         </div>
       </div>

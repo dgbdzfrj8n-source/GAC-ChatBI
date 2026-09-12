@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 import Sidebar from '@/components/Sidebar';
 import TopBar from '@/components/TopBar';
+import DemoTour from '@/components/DemoTour';
 import { BrandProvider } from '@/contexts/BrandContext';
 
 export const metadata: Metadata = {
@@ -58,6 +59,8 @@ export default function RootLayout({
             </div>
           </div>
         </BrandProvider>
+        {/* P2-6: 演示模式新手引导（首次访问自动触发） */}
+        <DemoTour />
       </body>
     </html>
   );
