@@ -922,3 +922,405 @@ class RagRetriever:
 ---
 
 *这份手册已完整落实在本工作区，所有 Sprint 任务可直接驱动 Cursor 逐个模块敏捷实现！*
+
+---
+
+## 十二、Sprint 7：UI/UX 全面升级 — 企业级 BI 工作台
+
+### 12.1 升级目标
+
+参照 **腾讯云 ChatBI** 与 **Netlify ChatBI** 的主流 BI 前端布局，将现有 GAC-ChatBI 从「单页居中卡片」重构为「**左侧菜单 + 右侧内容**」的标准企业级 BI 工作台布局，并融入 **广汽集团品牌元素**（Logo、配色、字体）。
+
+#### 竞品对标
+
+| 维度 | Netlify ChatBI | 腾讯云 ChatBI | GAC-ChatBI (升级后) |
+|------|---------------|---------------|-------------------|
+| 布局 | 左侧菜单 + 右侧内容 | 左侧菜单 + 右侧内容 | ✅ 左侧菜单 + 右侧内容 |
+| 品牌色 | 紫蓝渐变 | 腾讯云蓝 | ✅ 广汽集团蓝 #003C8F |
+| LOGO | SaaS Logo | 腾讯云 Logo | ✅ GAC 椭圆 Logo (CSS 还原) |
+| 导航 | 按功能分类 | 按数据集/看板/对话 | ✅ 按核心功能分类 |
+| 风格 | 现代简约 | 企业级 | ✅ 企业级 + 现代感 |
+
+---
+
+### 12.2 整体布局设计
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│  TopBar  [GAC Logo]  广汽云 ChatBI                          [👤] │
+├──────────┬───────────────────────────────────────────────────────┤
+│          │                                                       │
+│  Sidebar │              Main Content Area                        │
+│          │                                                       │
+│  📊 智能  │   ┌──────────────────────────────────────────┐        │
+│   经营    │   │  [当前页面标题]                              │        │
+│   分析    │   │                                            │        │
+│  ├─💬对话 │   │  ┌─────────────────────────────────────┐  │        │
+│  ├─🚗驾驶舱│   │  │                                     │  │        │
+│  └─📈报表  │   │  │       功能内容区                    │  │        │
+│          │   │  │                                     │  │        │
+│  📋 业务  │   │  │                                     │  │        │
+│   资产    │   │  └─────────────────────────────────────┘  │        │
+│  ├─📐指标库│   └──────────────────────────────────────────┘        │
+│  ├─🗄数据表│                                                       │
+│  └─📜历史  │                                                       │
+│          │                                                       │
+│  ⚙ 系统   │                                                       │
+│  ├─⚙设置  │                                                       │
+│  └─📖帮助  │                                                       │
+│          │                                                       │
+└──────────┴───────────────────────────────────────────────────────┘
+   240px                flex-1 自适应
+```
+
+---
+
+### 12.3 广汽集团品牌设计规范
+
+#### 12.3.1 LOGO 设计（CSS 还原）
+
+```css
+.gac-logo {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #003C8F 0%, #0050B8 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #FFFFFF;
+  font-weight: 800;
+  font-size: 16px;
+  letter-spacing: -1px;
+  border: 2px solid #C8102E; /* 广汽红 */
+  box-shadow: 0 2px 8px rgba(0, 60, 143, 0.3);
+}
+```
+
+⚠️ 真正的广汽集团 LOGO 是椭圆 + "G" 字母 + 红蓝配色。我们用 CSS 完美还原。
+
+#### 12.3.2 配色方案
+
+```css
+:root {
+  --gac-primary: #003C8F;      /* 广汽蓝（主色）*/
+  --gac-primary-light: #0050B8; /* 浅蓝（hover）*/
+  --gac-primary-dark: #002855;  /* 深蓝（按下）*/
+  --gac-accent: #C8102E;        /* 广汽红（强调）*/
+  --gac-gold: #FFB81C;          /* 金色（高亮）*/
+  --gac-gray-50: #F8FAFC;
+  --gac-gray-100: #F1F5F9;
+  --gac-gray-200: #E2E8F0;
+  --gac-gray-500: #64748B;
+  --gac-gray-700: #334155;
+  --gac-gray-900: #0F172A;
+}
+```
+
+#### 12.3.3 字体
+
+```css
+font-family: -apple-system, BlinkMacSystemFont, "PingFang SC",
+             "Microsoft YaHei", "Helvetica Neue", sans-serif;
+```
+
+#### 12.3.4 视觉规范
+
+| 元素 | 规范 |
+|------|------|
+| 圆角 | 8px（卡片）/ 4px（按钮）/ 12px（头像） |
+| 阴影 | 0 1px 3px rgba(0, 60, 143, 0.06) |
+| 间距 | 8 / 16 / 24 / 32 px |
+| 主按钮 | 广汽蓝底白字 |
+| 次按钮 | 白色蓝边 |
+| 危险按钮 | 广汽红底白字 |
+
+---
+
+### 12.4 菜单结构
+
+```typescript
+// frontend/lib/menu.ts
+export interface MenuItem {
+  id: string;
+  label: string;
+  icon: string;       // emoji 或 SVG
+  path?: string;
+  children?: MenuItem[];
+  group: 'analysis' | 'assets' | 'system';
+}
+
+export const menuConfig: MenuItem[] = [
+  {
+    id: 'analysis',
+    label: '智能经营分析',
+    icon: '📊',
+    group: 'analysis',
+    children: [
+      { id: 'chat',    label: '智能对话', icon: '💬', path: '/',         group: 'analysis' },
+      { id: 'dashboard', label: '驾驶舱大屏', icon: '🚗', path: '/dashboard', group: 'analysis' },
+      { id: 'reports', label: '报表中心', icon: '📈', path: '/reports',  group: 'analysis' },
+    ],
+  },
+  {
+    id: 'assets',
+    label: '业务资产',
+    icon: '📋',
+    group: 'assets',
+    children: [
+      { id: 'metrics', label: '指标库', icon: '📐', path: '/metrics', group: 'assets' },
+      { id: 'tables',  label: '数据表', icon: '🗄', path: '/tables',  group: 'assets' },
+      { id: 'history', label: '历史会话', icon: '📜', path: '/history', group: 'assets' },
+    ],
+  },
+  {
+    id: 'system',
+    label: '系统',
+    icon: '⚙️',
+    group: 'system',
+    children: [
+      { id: 'settings', label: '设置', icon: '⚙️', path: '/settings', group: 'system' },
+      { id: 'help',     label: '帮助文档', icon: '📖', path: '/help', group: 'system' },
+    ],
+  },
+];
+```
+
+---
+
+### 12.5 路由规划（Next.js App Router）
+
+```
+frontend/app/
+├── layout.tsx              # 全局布局（Sidebar + TopBar）
+├── page.tsx                # 💬 智能对话（默认首页）
+├── dashboard/
+│   └── page.tsx            # 🚗 驾驶舱大屏
+├── reports/
+│   └── page.tsx            # 📈 报表中心
+├── metrics/
+│   └── page.tsx            # 📐 指标库
+├── tables/
+│   └── page.tsx            # 🗄 数据表
+├── history/
+│   └── page.tsx            # 📜 历史会话
+├── settings/
+│   └── page.tsx            # ⚙️ 设置
+└── help/
+    └── page.tsx            # 📖 帮助文档
+```
+
+---
+
+### 12.6 关键组件设计
+
+#### 12.6.1 Sidebar（侧边栏）
+
+```tsx
+// frontend/components/Sidebar.tsx
+'use client';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { menuConfig } from '@/lib/menu';
+
+export default function Sidebar() {
+  const pathname = usePathname();
+
+  return (
+    <aside className="w-60 bg-white border-r border-gac-gray-200 flex flex-col">
+      {/* Logo 区 */}
+      <div className="h-16 flex items-center px-6 border-b border-gac-gray-200">
+        <div className="gac-logo mr-3">G</div>
+        <div>
+          <div className="font-bold text-gac-primary">广汽云 ChatBI</div>
+          <div className="text-xs text-gac-gray-500">智能经营分析平台</div>
+        </div>
+      </div>
+
+      {/* 菜单区 */}
+      <nav className="flex-1 overflow-y-auto py-4">
+        {menuConfig.map((group) => (
+          <div key={group.id} className="mb-6">
+            <div className="px-6 mb-2 text-xs font-semibold text-gac-gray-500 uppercase">
+              {group.label}
+            </div>
+            {group.children?.map((item) => {
+              const isActive = pathname === item.path;
+              return (
+                <Link
+                  key={item.id}
+                  href={item.path!}
+                  className={`
+                    flex items-center px-6 py-2.5 mx-2 rounded-lg text-sm
+                    ${isActive
+                      ? 'bg-gac-primary text-white font-medium'
+                      : 'text-gac-gray-700 hover:bg-gac-gray-100'}
+                  `}
+                >
+                  <span className="mr-3 text-base">{item.icon}</span>
+                  {item.label}
+                </Link>
+              );
+            })}
+          </div>
+        ))}
+      </nav>
+
+      {/* 底部用户区 */}
+      <div className="p-4 border-t border-gac-gray-200 text-xs text-gac-gray-500">
+        <div>Sprint 7 已上线</div>
+        <div>v1.7.0 · 2026.09</div>
+      </div>
+    </aside>
+  );
+}
+```
+
+#### 12.6.2 TopBar（顶部栏）
+
+```tsx
+// frontend/components/TopBar.tsx
+'use client';
+import { usePathname } from 'next/navigation';
+
+const titleMap: Record<string, string> = {
+  '/':         '智能对话',
+  '/dashboard':'驾驶舱大屏',
+  '/reports':  '报表中心',
+  '/metrics':  '指标库',
+  '/tables':   '数据表',
+  '/history':  '历史会话',
+  '/settings': '设置',
+  '/help':     '帮助文档',
+};
+
+export default function TopBar() {
+  const pathname = usePathname();
+  const title = titleMap[pathname] ?? '广汽云 ChatBI';
+
+  return (
+    <header className="h-16 bg-white border-b border-gac-gray-200 flex items-center justify-between px-6">
+      <div>
+        <h1 className="text-lg font-semibold text-gac-gray-900">{title}</h1>
+        <p className="text-xs text-gac-gray-500">基于集团真实经营数据，AI 驱动的智能问数</p>
+      </div>
+      <div className="flex items-center space-x-4">
+        <span className="text-xs px-3 py-1 bg-green-50 text-green-700 rounded-full">
+          ● 系统正常
+        </span>
+        <div className="w-9 h-9 rounded-full bg-gac-primary text-white flex items-center justify-center font-semibold">
+          AI
+        </div>
+      </div>
+    </header>
+  );
+}
+```
+
+#### 12.6.3 Layout（布局容器）
+
+```tsx
+// frontend/app/layout.tsx
+import Sidebar from '@/components/Sidebar';
+import TopBar from '@/components/TopBar';
+import './globals.css';
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="zh-CN">
+      <body className="bg-gac-gray-50">
+        <div className="flex h-screen">
+          <Sidebar />
+          <div className="flex-1 flex flex-col overflow-hidden">
+            <TopBar />
+            <main className="flex-1 overflow-y-auto p-6">
+              {children}
+            </main>
+          </div>
+        </div>
+      </body>
+    </html>
+  );
+}
+```
+
+---
+
+### 12.7 各页面内容规划
+
+| 页面 | 内容 |
+|------|------|
+| 💬 智能对话 (`/`) | 保留现有 Chat 完整功能（输入框、流式输出、图表、快捷提问） |
+| 🚗 驾驶舱 (`/dashboard`) | 全屏驾驶舱：4 KPI + 趋势 + 排名 + 预警 |
+| 📈 报表 (`/reports`) | 报表列表（预算达成 / 销量归因 / 异常波动） |
+| 📐 指标库 (`/metrics`) | 6 个核心指标卡片展示 |
+| 🗄 数据表 (`/tables`) | 3 张事实表 schema + 示例查询 |
+| 📜 历史会话 (`/history`) | 会话列表（从 localStorage 读） |
+| ⚙ 设置 (`/settings`) | API key / 模型选择 / 主题 |
+| 📖 帮助 (`/help`) | 使用文档 + FAQ |
+
+---
+
+### 12.8 落地步骤
+
+| Day | 任务 | 工时 | 优先级 |
+|-----|------|------|--------|
+| Day 1 | 12.1-12.3 规划 + 文档更新 | 1h | 🔴 P0 |
+| Day 1 | 12.4-12.5 菜单 + 路由规划 | 1h | 🔴 P0 |
+| Day 2 | 12.6 Sidebar + TopBar + Layout | 3h | 🔴 P0 |
+| Day 2 | 12.7 迁移 8 个页面 | 4h | 🔴 P0 |
+| Day 3 | 12.8 广汽 LOGO + 配色 + 品牌化 | 2h | 🟡 P1 |
+| Day 3 | 联调 + 部署 Render | 2h | 🟡 P1 |
+
+---
+
+### 12.9 验收 Checklist
+
+```text
+[ ] Sidebar 显示：智能经营分析 / 业务资产 / 系统 三大分组
+[ ] 菜单激活态用广汽蓝底白字
+[ ] TopBar 显示当前页面标题 + 状态指示器
+[ ] 广汽 LOGO CSS 还原（椭圆 + G + 红蓝）
+[ ] 主色调使用广汽蓝 #003C8F
+[ ] 字体使用 PingFang SC
+[ ] 8 个路由全部可访问
+[ ] 智能对话页面所有原有功能保留
+[ ] 部署 URL 仍为 https://gac-chatbi.onrender.com
+[ ] 移动端响应式可用（≥ 768px）
+```
+
+---
+
+### 12.10 设计参考要点（来自竞品）
+
+**Netlify ChatBI 的优势**：
+- 菜单分组清晰（数据集 / 模型 / 看板）
+- 内容区留白合理
+- 主色调统一
+
+**腾讯云 ChatBI 的优势**：
+- 顶部项目切换器
+- 左侧菜单可折叠
+- 底部用户信息卡
+
+**我们要做的**：
+- ✅ 采用「左侧菜单 + 右侧内容」布局
+- ✅ 顶部栏放品牌 + 用户
+- ✅ 菜单按核心功能分组（智能分析 / 业务资产 / 系统）
+- ✅ 加入广汽集团 LOGO + 标准色
+
+---
+
+## 十三、Sprint 7 落地排期
+
+| Day | 任务 | 工时 |
+|-----|------|------|
+| Day 1 | 文档规划 + 路由搭建 | 2h |
+| Day 2 | Sidebar + TopBar + Layout 实现 | 3h |
+| Day 2 | 迁移 8 个页面（保留 chat 完整功能） | 4h |
+| Day 3 | 广汽 LOGO + 配色 + 品牌化打磨 | 2h |
+| Day 3 | 联调测试 + 重新部署 Render | 2h |
+
+---
+
+*本章将驱动后续 UI 升级工作，所有功能保留，向企业级 BI 工作台演进！*

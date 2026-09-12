@@ -16,7 +16,6 @@ import SuggestionPills from "@/components/SuggestionPills";
 import ChatMessage from "@/components/ChatMessage";
 import SqlDrawer from "@/components/SqlDrawer";
 import BadCaseModal from "@/components/BadCaseModal";
-import Sidebar from "@/components/Sidebar";
 import SopResultModal from "@/components/SopResultModal";
 import { streamChat } from "@/lib/sse";
 
@@ -406,10 +405,7 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="flex h-[calc(100vh-3.5rem)]">
-      {/* 左侧边栏 */}
-      <Sidebar isOpen={showSidebar} onToggle={() => setShowSidebar(!showSidebar)} />
-
+    <div className="flex flex-col h-[calc(100vh-4rem)]">
       {/* 主对话区 */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* 顶部：引导词 + 大屏入口 */}
