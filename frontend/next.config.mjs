@@ -1,9 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // 适配 Render Static Site 静态部署
+  // 适配 Netlify Static Site 部署
   output: "export",
   images: {
-    // 静态导出必须用 unoptimized，或部署到 Vercel/Netlify Image CDN
+    // 静态导出必须用 unoptimized
     unoptimized: true,
   },
   // 构建时跳过 ESLint 检查（避免 any 类型报错）
