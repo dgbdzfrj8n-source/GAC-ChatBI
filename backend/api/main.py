@@ -636,11 +636,15 @@ async def upload_csv(
 
 
 @app.get("/api/data/preview/{table_name}", tags=["数据管理"])
-async def preview_data(table_name: str, limit: int = 50):
-    """预览用户表前 N 行"""
+async def preview_data(table_name: str, limit: int = 50, source: str = "user"):
+    """
+    预览前 N 行
+    - source=user (默认): 用户上传的 CSV 表
+    - source=business : 业务默认表（fact_sales_daily / dim_budget_target / fact_marketing_expenses）
+    """
     try:
         from services.data_manager import preview_table
-        return preview_table(table_name, limit)
+        return preview_table(table_name, limit, source=source)
     except ValueError as ve:
         raise HTTPException(status_code=404, detail=str(ve))
     except Exception as e:

@@ -343,19 +343,33 @@ def _is_date(v: str) -> bool:
     return bool(re.match(r"^\d{4}[-/]\d{1,2}[-/]\d{1,2}", v.strip()))
 
 
-def preview_table(table_name: str, limit: int = 50) -> Dict[str, Any]:
-    """预览表前 N 行"""
+def preview_table(table_name: str, limit: int = 50, source: str = "user") -> Dict[str, Any]:
+    """
+    预览表前 N 行
+
+    source='user' (默认): 查 user_data.duckdb（用户上传）
+    source='business'     : 查 gac_bi.duckdb（业务默认表）
+    """
     _ensure_dirs()
-    if not USER_DB_PATH.exists():
-        raise ValueError("用户库为空")
-    full = _validate_table_name(table_name)  # 自动加前缀
-    con = duckdb.connect(str(USER_DB_PATH), read_only=True)
+
+    # 业务主库表：连接主库而非用户库（修复：预览默认表时不再误报"用户库为空"）
+    if source == "business" or table_name in BUSINESS_TABLES or not TABLE_PREFIX in table_name and table_name in BUSINESS_TABLES:
+        if not DUCKDB_PATH.exists():
+            raise ValueError("业务主库不存在")
+        full = table_name
+        con = duckdb.connect(str(DUCKDB_PATH), read_only=True)
+    else:
+        if not USER_DB_PATH.exists():
+            raise ValueError("用户库为空，请先上传 CSV 文件")
+        full = _validate_table_name(table_name)
+        con = duckdb.connect(str(USER_DB_PATH), read_only=True)
+
     try:
         cnt = con.execute(f'SELECT COUNT(*) FROM "{full}"').fetchone()[0]
         cursor = con.execute(f'SELECT * FROM "{full}" LIMIT ?', [limit])
         cols = [d[0] for d in cursor.description]
         data = [dict(zip(cols, row)) for row in cursor.fetchall()]
-        return {"table_name": full, "row_count": cnt, "columns": cols, "data": data, "preview_limit": limit}
+        return {"table_name": full, "row_count": cnt, "columns": cols, "data": data, "preview_limit": limit, "source": source}
     finally:
         con.close()
 

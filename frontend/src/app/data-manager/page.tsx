@@ -94,10 +94,10 @@ export default function DataManagerPage() {
 
   /**
    * 跳转到智能对话并自动提问该表的明细
-   * 例如：fact_sales_daily → "查看 fact_sales_daily 表前 20 行明细"
+   * 用更明确的查询模板，让 NL2SQL 能稳定命中"明细查看"意图
    */
   function handleAskInChat(tableName: string) {
-    const query = `请查看 ${tableName} 表的最近 20 行数据明细`;
+    const query = `请按日期倒序展示 ${tableName} 表的前 20 行数据明细（用 SQL: SELECT * FROM ${tableName} ORDER BY <时间列> DESC LIMIT 20）`;
     if (typeof window !== 'undefined') {
       localStorage.setItem('gac-pending-query', query);
       window.location.href = '/?pending=' + encodeURIComponent(query);
@@ -135,10 +135,12 @@ export default function DataManagerPage() {
     }
   }
 
-  async function handlePreview(tname: string) {
+  async function handlePreview(tname: string, source: 'user' | 'business' = 'user') {
     setPreviewing(tname);
     try {
-      const r = await fetch(`${API_URL}/api/data/preview/${encodeURIComponent(tname)}?limit=100`);
+      const r = await fetch(
+        `${API_URL}/api/data/preview/${encodeURIComponent(tname)}?limit=100&source=${source}`
+      );
       const result = await r.json();
       if (!r.ok) throw new Error(result.detail || '预览失败');
       setPreviewData(result);
@@ -411,7 +413,7 @@ export default function DataManagerPage() {
               </div>
               <div className="flex items-center gap-1">
                 <button
-                  onClick={() => handlePreview(t.table_name)}
+                  onClick={() => handlePreview(t.table_name, 'business')}
                   disabled={previewing === t.table_name}
                   className="flex-1 px-2 py-1.5 text-xs text-blue-700 bg-white border border-blue-200 hover:bg-blue-50 rounded-md disabled:opacity-50 transition-colors"
                 >
