@@ -1,6 +1,9 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { authFetch, getUser, getToken, UserInfo } from "@/lib/auth";
+import UserMenu from "@/components/UserMenu";
 import {
   Send,
   Code2,
@@ -83,6 +86,20 @@ interface Message {
 }
 
 export default function ChatPage() {
+  const router = useRouter();
+  const [currentUser, setCurrentUser] = useState<UserInfo | null>(null);
+
+  // [Sprint 10] 鉴权守卫：未登录跳 /login
+  useEffect(() => {
+    const u = getUser();
+    const t = getToken();
+    if (!u || !t) {
+      router.push("/login");
+      return;
+    }
+    setCurrentUser(u);
+  }, [router]);
+
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -182,7 +199,7 @@ export default function ChatPage() {
     ]);
 
     try {
-      const r = await fetch(
+      const r = await authFetch(
         `${API_URL}/api/data/details/${encodeURIComponent(tableName)}?limit=20&source=${source}`
       );
       const result = await r.json();
@@ -445,7 +462,7 @@ export default function ChatPage() {
    */
   const handleSendBlocking = async (query: string) => {
     try {
-      const res = await fetch(`${API_URL}/api/chat`, {
+      const res = await authFetch(`${API_URL}/api/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query, force_mock: false }),
@@ -532,7 +549,7 @@ export default function ChatPage() {
     setSopLoading(true);
     setShowSop(true);
     try {
-      const res = await fetch(`${API_URL}/api/sop/analyze`, {
+      const res = await authFetch(`${API_URL}/api/sop/analyze`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -589,19 +606,22 @@ export default function ChatPage() {
 
   return (
     <div className="flex flex-col h-full px-6 py-4">
-      {/* 快捷提问 + 大屏入口 */}
+      {/* 快捷提问 + 大屏入口 + 用户胶囊 */}
       <div className="flex items-start justify-between gap-4 mb-4 flex-shrink-0">
         <div className="flex-1">
           <SuggestionPills onSuggestion={handleSuggestion} />
         </div>
-        <a
-          href="/dashboard"
-          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-medium transition-all shadow-sm flex-shrink-0"
-          title="进入管理驾驶舱大屏"
-        >
-          <Activity className="w-3.5 h-3.5" />
-          驾驶舱大屏
-        </a>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {currentUser && <UserMenu />}
+          <a
+            href="/dashboard"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-medium transition-all shadow-sm"
+            title="进入管理驾驶舱大屏"
+          >
+            <Activity className="w-3.5 h-3.5" />
+            驾驶舱大屏
+          </a>
+        </div>
       </div>
 
         {/* 对话流（可滚动区域） */}

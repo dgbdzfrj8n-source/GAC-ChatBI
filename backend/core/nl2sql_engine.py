@@ -10,7 +10,10 @@
 import os
 import re
 import json
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from core.auth import CurrentUser
 from core.schema_linker import SchemaLinker
 from core.sql_executor import SqlExecutor
 from core.prompt_templates import (
@@ -286,7 +289,7 @@ class Nl2SqlEngine:
             print(f"[渲染 insight 异常]: {e}")
             return insight
 
-    def ask(self, query: str, force_mock: bool = False) -> Dict[str, Any]:
+    def ask(self, query: str, force_mock: bool = False, current_user: Optional["CurrentUser"] = None) -> Dict[str, Any]:
         """
         核心问数调度主流程：
         1. 闲聊/元问题引导
@@ -393,6 +396,53 @@ class Nl2SqlEngine:
             if not insight:
                 insight = f"本次查询共获得 {exec_res['row_count']} 条业务记录，数据已成功经过集团统一口径校验。"
 
+            # [Sprint 10] 应用行级权限过滤 + 字段级脱敏
+            if current_user:
+                from core.permission import apply_full_permission, check_table_access
+                # 1. 表级权限校验
+                sql_lower = (raw_sql or "").lower()
+                # 简单检测 SQL 里出现的 fact_/dim_ 表名
+                import re as _re
+                tables_in_sql = _re.findall(r'\b(fact_\w+|dim_\w+)\b', sql_lower)
+                for tbl in set(tables_in_sql):
+                    if not check_table_access(current_user, tbl):
+                        return {
+                            "query": query,
+                            "thought_steps": thought_steps + [f"⛔ 权限不足：角色 {current_user.role} 无权访问表 {tbl}"],
+                            "sql": raw_sql,
+                            "success": False,
+                            "data": [],
+                            "columns": [],
+                            "row_count": 0,
+                            "execution_time_ms": exec_res["execution_time_ms"],
+                            "error": f"权限不足：当前角色无访问表 {tbl} 的权限。请联系管理员申请。",
+                            "summary_insight": f"⛔ 您的角色（{current_user.role}）无权访问表 {tbl}。\n\n请联系系统管理员申请权限，或切换到具备权限的账号。",
+                            "healed": healed,
+                            "engine": self.sql_executor.engine_type,
+                            "is_meta_answer": False,
+                            "permission_denied": True,
+                        }
+
+                # 2. 行级过滤 + 字段级脱敏（统一入口）
+                perm_result = apply_full_permission(
+                    sql=raw_sql,
+                    user=current_user,
+                    data=exec_res["data"],
+                    columns=exec_res["columns"],
+                )
+                exec_res["data"] = perm_result["data"]
+                exec_res["columns"] = perm_result["columns"]
+                # 注意：行级过滤 SQL 已应用到 raw_sql（业务用户看起来"明明查询全集团但只看到自己区域"是预期行为）
+                if perm_result["permission"]["row_filtered"]:
+                    thought_steps.append(f"🔒 已应用行级权限：{current_user.department} + {current_user.region}")
+                if perm_result["permission"]["masked_columns"]:
+                    thought_steps.append(f"🎭 已脱敏敏感字段：{', '.join(perm_result['permission']['masked_columns'])}")
+                # 把权限信息附加到返回 dict
+                perm_info = perm_result["permission"]
+
+        if not exec_res["success"]:
+            perm_info = None
+
         return {
             "query": query,
             "thought_steps": thought_steps,
@@ -405,7 +455,8 @@ class Nl2SqlEngine:
             "error": exec_res["error"],
             "summary_insight": insight,
             "healed": healed,
-            "engine": self.sql_executor.engine_type
+            "engine": self.sql_executor.engine_type,
+            "permission": perm_info if current_user and exec_res["success"] else None,
         }
 
 if __name__ == "__main__":

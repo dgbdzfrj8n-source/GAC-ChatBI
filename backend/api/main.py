@@ -20,9 +20,10 @@ if _BACKEND_DIR not in sys.path:
 import json
 import datetime
 from typing import Any, Dict, List, Optional
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+from core.auth import CurrentUser, get_current_user
 from api.schemas import (
     ChatQueryRequest,
     ChatQueryResponse,
@@ -60,6 +61,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ============================================================
+# [Sprint 10] 注册鉴权路由（Mock IAM）
+# ============================================================
+from api.auth_router import router as auth_router
+app.include_router(auth_router)
 
 # 实例化单例 Agent 引擎与图表推荐器
 nl2sql_engine = Nl2SqlEngine()
@@ -111,13 +118,17 @@ def get_metrics_dict():
     return data
 
 @app.post("/api/chat", response_model=ChatQueryResponse, tags=["智能问数"])
-def chat_query(req: ChatQueryRequest):
+def chat_query(req: ChatQueryRequest, user: CurrentUser = Depends(get_current_user)):
     """
     核心智能问数端点：
     自然语言提问 -> 剪枝 -> SQL生成 -> 数据库执行 -> 自适应ECharts推断 -> 经营分析洞察
+
+    [Sprint 10] 新增：行级权限 + 字段级脱敏
+      - 业务用户：张三只能看「埃安 + 广州」
+      - 手机号/身份证自动脱敏为 138****5678
     """
-    # 1. 运行问数主引擎
-    result = nl2sql_engine.ask(req.query, force_mock=req.force_mock)
+    # 1. 运行问数主引擎（注入 user 用于权限过滤）
+    result = nl2sql_engine.ask(req.query, force_mock=req.force_mock, current_user=user)
 
     # 2. 生成自适应 ECharts 图表配置
     chart_info = chart_recommender.recommend(
@@ -251,7 +262,7 @@ def sop_analyze(req: SopAnalysisRequest):
 
 # ─── Sprint 5.1 SSE 流式问数端点 ──────────────────────────────────────
 @app.post("/api/chat/stream", tags=["智能问数"])
-async def chat_stream(req: ChatQueryRequest):
+async def chat_stream(req: ChatQueryRequest, user: CurrentUser = Depends(get_current_user)):
     """
     Sprint 5.1: SSE 流式问数端点
 
