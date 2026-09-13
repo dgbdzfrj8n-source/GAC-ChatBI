@@ -93,10 +93,10 @@ MOCK_USERS: Dict[str, MockUser] = {
 # 演示账号提示文案（前端登录页展示）
 # ============================================================
 DEMO_ACCOUNTS_HINT = [
+    {"username": "admin",    "name": "谢志锋", "role_label": "管理员", "scope": "全部权限（推荐演示首选）"},
     {"username": "zhangsan", "name": "张三", "role_label": "业务用户", "scope": "仅看埃安 + 广州区域"},
     {"username": "lisi",     "name": "李四", "role_label": "业务用户", "scope": "仅看传祺 + 深圳区域"},
     {"username": "wangwu",   "name": "王五", "role_label": "数据分析师", "scope": "全集团只读"},
-    {"username": "admin",    "name": "谢志锋", "role_label": "管理员", "scope": "全部权限"},
     {"username": "auditor",  "name": "赵六", "role_label": "审计员", "scope": "只读 + 审计日志"},
 ]
 

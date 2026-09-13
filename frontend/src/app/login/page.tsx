@@ -110,11 +110,20 @@ export default function LoginPage() {
                 key={a.username}
                 disabled={loading}
                 onClick={() => handleLogin(a.username, "demo")}
-                className="w-full flex items-center justify-between px-4 py-3 border border-gray-200 rounded-lg hover:bg-emerald-50 hover:border-emerald-300 transition text-left"
+                className={`w-full flex items-center justify-between px-4 py-3 border rounded-lg transition text-left ${
+                  a.username === 'admin'
+                    ? 'bg-emerald-50 border-emerald-300 hover:bg-emerald-100'
+                    : 'border-gray-200 hover:bg-emerald-50 hover:border-emerald-300'
+                }`}
               >
                 <div>
                   <div className="font-medium text-gray-800">
                     {a.name} <span className="text-xs text-gray-400 ml-1">@{a.username}</span>
+                    {a.username === 'admin' && (
+                      <span className="ml-2 inline-block text-xs px-2 py-0.5 bg-emerald-500 text-white rounded-full">
+                        ⭐ 推荐
+                      </span>
+                    )}
                   </div>
                   <div className="text-xs text-gray-500 mt-0.5">
                     {a.role_label} · {a.scope}
