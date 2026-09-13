@@ -2,6 +2,7 @@
 # 广汽云 ChatBI - 后端服务 Dockerfile
 # Render 专用：fix HEALTHCHECK 端口 + 简化构建
 # ==================================================
+# 触发 Render 强制 rebuild 的标记 (commit acdb6c5 + 强制 rebuild)
 
 FROM python:3.11-slim
 
