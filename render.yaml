@@ -6,8 +6,8 @@
 #   1) Render 控制台 → New → Blueprint → 选本仓库 → Apply
 #   2) 之后每次 git push origin main 都会自动触发部署
 # =====================================================
-# FORCE_REBUILD_v2: 强制 Render 重新 build（解决 failed 状态不触发问题）
-# timestamp: 2026-09-13T13:14:00Z
+# 如果 autoDeploy 没生效，参考 RENDER_FORCE_REBUILD.md 手动触发
+# 验证脚本：bash verify_render_deploy.sh
 
 services:
   # ============ 后端：FastAPI + DuckDB ============
