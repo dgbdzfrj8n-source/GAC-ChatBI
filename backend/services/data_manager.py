@@ -36,6 +36,7 @@ BACKEND_DIR = Path(__file__).parent.parent
 DATA_DIR = BACKEND_DIR / "data"
 USER_DIR = DATA_DIR / "user_uploads"
 USER_DB_PATH = DATA_DIR / "user_data.duckdb"
+DUCKDB_PATH = DATA_DIR / "gac_bi.duckdb"  # 业务主库（只读）
 
 # 配额
 MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024  # 20MB

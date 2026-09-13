@@ -171,6 +171,115 @@ class Nl2SqlEngine:
             return True
         return any(t in q for t in self.SMART_TALK_TRIGGERS)
 
+    def _render_insight_template(self, insight: str, exec_res: Dict[str, Any], query: str) -> str:
+        """渲染 insight 模板里的占位符，把 {actual}, {target}, {rate} 等替换为真实值。
+
+        data 可能是 list[dict] 或 list[tuple]（取决于 sql_executor 行为）
+        """
+        try:
+            data = exec_res.get("data", [])
+            cols = exec_res.get("columns", [])
+
+            if not data:
+                return insight.replace("{ym}", "2025-03").replace("{total}", "0").replace("{count}", "0")
+
+            first = data[0]
+            col_idx = {c: i for i, c in enumerate(cols)}
+
+            def get_val(*names):
+                """按列名取值（兼容 list[dict] 和 list[tuple]）"""
+                # 优先作为 dict
+                if isinstance(first, dict):
+                    for n in names:
+                        if n in first and first[n] is not None:
+                            return first[n]
+                    # 模糊匹配
+                    for n in names:
+                        for col in cols:
+                            if n.lower() in col.lower() or col.lower() in n.lower():
+                                if first.get(col) is not None:
+                                    return first[col]
+                    return None
+                # list[tuple] 形式
+                for n in names:
+                    if n in col_idx:
+                        v = first[col_idx[n]]
+                        if v is not None:
+                            return v
+                    # 模糊
+                    for col in cols:
+                        if n.lower() in col.lower() or col.lower() in n.lower():
+                            v = first[col_idx[col]]
+                            if v is not None:
+                                return v
+                return None
+
+            def gv(*names) -> str:
+                v = get_val(*names)
+                if v is None:
+                    return "—"
+                if isinstance(v, float):
+                    return f"{v:,.2f}" if abs(v) < 100 else f"{int(v):,}"
+                return str(v)
+
+            ym = "2025-03"
+            for k in ["月份", "ym", "year_month"]:
+                v = get_val(k)
+                if v:
+                    ym = str(v)
+                    break
+
+            actual_val = gv("实际交付量", "units", "总交付量", "delivered_units")
+            target_val = gv("预算目标量", "target_units")
+            rate_val = gv("达成率_pct", "rate", "fulfillment_rate_pct")
+            if "{rate}" in insight and rate_val == "—" and actual_val != "—" and target_val != "—":
+                try:
+                    a = float(actual_val.replace(",", ""))
+                    t = float(target_val.replace(",", ""))
+                    if t > 0:
+                        rate_val = f"{(a/t*100):.2f}"
+                except Exception:
+                    pass
+
+            replacements = {
+                "{ym}": ym,
+                "{actual}": actual_val,
+                "{target}": target_val,
+                "{rate}": rate_val,
+                "{total}": gv("总交付量", "总营收_亿元", "total_delivered_units"),
+                "{revenue}": gv("总营收_亿元", "营收_万元", "gross_revenue_billion_yuan"),
+                "{top_model}": gv("车型", "model_name"),
+                "{top_price}": gv("单车均价_元", "avg_price_yuan"),
+                "{gq_price}": gv("单车均价_元", "avg_price_yuan"),
+                "{ht_rate}": gv("试驾转化率_pct"),
+                "{gt_rate}": gv("试驾转化率_pct"),
+                "{diff}": "—",
+                "{top_channel}": gv("渠道", "channel_name"),
+                "{top_pct}": gv("占比_pct"),
+                "{model}": gv("车型", "model_name"),
+                "{profit}": gv("估算毛利_元"),
+                "{best}": gv("渠道", "channel_name"),
+                "{best_cpl}": gv("CPL_元"),
+                "{worst}": gv("渠道", "channel_name"),
+                "{worst_cpl}": gv("CPL_元"),
+                "{pct}": gv("抖音占比_pct"),
+                "{best_roi}": gv("ROI_倍数"),
+                "{top_region}": gv("门店大区", "region_name"),
+                "{top_rate}": gv("客流成交转化率_pct"),
+                "{step1}": gv("进店→试驾_pct"),
+                "{step2}": gv("试驾→成交_pct"),
+                "{count}": str(len(data)),
+                "{lowest}": gv("转化率_pct"),
+            }
+
+            for k, v in replacements.items():
+                insight = insight.replace(k, v)
+
+            return insight
+        except Exception as e:
+            print(f"[渲染 insight 异常]: {e}")
+            return insight
+
     def ask(self, query: str, force_mock: bool = False) -> Dict[str, Any]:
         """
         核心问数调度主流程：
@@ -272,6 +381,9 @@ class Nl2SqlEngine:
 
         if exec_res["success"]:
             thought_steps.append(f"查询成功，耗时 {exec_res['execution_time_ms']}ms，获取 {exec_res['row_count']} 条经营聚合记录")
+            # 渲染 insight 中的占位符（如 {actual}, {target}, {rate}, {ym} 等）
+            if insight:
+                insight = self._render_insight_template(insight, exec_res, query)
             if not insight:
                 insight = f"本次查询共获得 {exec_res['row_count']} 条业务记录，数据已成功经过集团统一口径校验。"
 
