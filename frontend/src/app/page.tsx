@@ -188,14 +188,15 @@ export default function ChatPage() {
       const result = await r.json();
       if (!r.ok) throw new Error(result.detail || "明细查询失败");
 
-      // 包装成 ChatResult 格式（强制 chart_type='table'，避免错误推荐 ECharts）
+      // 包装成 ChatResult 格式（chart_type 由后端智能判断：可能 line/bar/table）
+      const chartType = (result.chart_type || "table") as "line" | "bar" | "table";
       const chatResult: ChartResult = {
         query,
         thought_steps: [
           `🎯 命中「明细查询」专用通道（跳过 NL2SQL）`,
           `📊 目标表：${result.table_name}（共 ${result.row_count.toLocaleString()} 行）`,
           `🗂️ 已按 ${result.order_by || '默认顺序'} 倒序展示前 ${result.data.length} 行`,
-          `💡 明细类查询无需图表，用表格清晰呈现`,
+          `💡 明细可切图表视图：${chartType === 'table' ? '当前数据无适合图表，按表格展示' : `已自动生成 ${chartType === 'line' ? '趋势折线' : '柱状'}图`}`,
         ],
         sql: result.order_by
           ? `SELECT * FROM ${result.table_name} ORDER BY ${result.order_by} DESC LIMIT 20`
@@ -205,21 +206,23 @@ export default function ChatPage() {
         columns: result.columns.map((c: any) => c.name),
         row_count: result.data.length,
         execution_time_ms: 0,
-        chart_type: "table",  // 强制表格，避免错误推荐柱状/折线
-        echarts_option: undefined,
+        chart_type: chartType,                 // 智能判断
+        echarts_option: result.echarts_option, // 后端生成的图表
         summary_insight: result.summary,
         engine: "direct_details",
         error: null,
       };
 
       // 替换 AI 占位
-      setMessages((prev) =>
+      setMessages((prev: Message[]) =>
         prev.map((m) =>
-          m.id === assistantId ? { ...m, content: "✅ 已加载", result: chatResult } : m
+          m.id === assistantId
+            ? { ...m, content: chartType === 'table' ? '✅ 明细已加载（表格视图）' : `✅ 明细已加载（自动${chartType === 'line' ? '折线' : '柱状'}图）`, result: chatResult }
+            : m
         )
       );
       setCurrentResult(chatResult);
-      setViewMode("table");  // 自动切到表格视图
+      setViewMode(chartType === 'table' ? 'table' : 'chart');  // 有图表就展示图表，否则直接表格
       setStreamStatus("");
     } catch (e: any) {
       const errResult: ChartResult = {

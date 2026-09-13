@@ -382,6 +382,105 @@ _TIME_COL_PATTERNS = [
 ]
 
 
+def _build_smart_chart_option(
+    columns: list, data: list, time_col: Optional[str], table_name: str
+) -> tuple:
+    """
+    [P2-1 新增] 明细数据智能图表生成
+
+    规则：
+      1. 有时间列 + 有数值列 → 折线图 (x=时间, y=首个数值列)
+      2. 有时间列 + 多个数值列 → 分组柱状图
+      3. 有类别列 + 数值列 → 柱状图
+      4. 无合适列 → fallback 'table'
+
+    返回 (chart_type, echarts_option)
+    """
+    if not data or not columns:
+        return "table", None
+
+    cols_lower = [c["name"].lower() for c in columns]
+    num_cols, cat_cols, time_cols_found = [], [], []
+
+    for c in columns:
+        n, t = c["name"], (c["type"] or "").lower()
+        sample = next((row.get(n) for row in data if row.get(n) is not None), None)
+
+        is_num = (
+            any(k in t for k in ["int", "decimal", "double", "float", "numeric"])
+            or isinstance(sample, (int, float))
+        )
+        is_time = any(k in n.lower() for k in _TIME_COL_PATTERNS) or "date" in t or "time" in t
+        is_cat = not is_num and not is_time
+
+        if is_num:
+            num_cols.append(n)
+        if is_time:
+            time_cols_found.append(n)
+        if is_cat and len(set(str(row.get(n)) for row in data if row.get(n))) < min(len(data), 30):
+            cat_cols.append(n)
+
+    # 规则 1+2：有时间列 + 数值列 → 折线 / 多线
+    if time_cols_found and num_cols:
+        t_col = time_cols_found[0]
+        # 时间列排序（升序，让折线从早到晚）
+        sorted_data = sorted(data, key=lambda r: r.get(t_col) or "")
+        x_data = [str(r.get(t_col, "")) for r in sorted_data]
+        y_data = [r.get(num_cols[0]) for r in sorted_data]
+
+        series = [
+            {
+                "name": num_cols[0],
+                "type": "line",
+                "smooth": True,
+                "data": y_data,
+                "areaStyle": {"opacity": 0.25},
+            }
+        ]
+        # 多个数值列 → 加 series
+        for nc in num_cols[1:3]:
+            series.append({
+                "name": nc,
+                "type": "line",
+                "smooth": True,
+                "data": [r.get(nc) for r in sorted_data],
+            })
+
+        option = {
+            "title": {"text": f"{table_name} 明细趋势", "left": "center", "textStyle": {"fontSize": 14}},
+            "tooltip": {"trigger": "axis"},
+            "legend": {"bottom": 0},
+            "grid": {"left": 50, "right": 30, "top": 50, "bottom": 60},
+            "xAxis": {"type": "category", "data": x_data, "axisLabel": {"rotate": 30}},
+            "yAxis": {"type": "value"},
+            "dataZoom": [{"type": "inside"}, {"type": "slider", "height": 18}],
+            "series": series,
+        }
+        return "line", option
+
+    # 规则 3：有类别列 + 数值列 → 柱状图
+    if cat_cols and num_cols:
+        cat_col = cat_cols[0]
+        top = min(len(data), 20)
+        subset = data[:top]
+        x_data = [str(r.get(cat_col, "")) for r in subset]
+        y_data = [r.get(num_cols[0]) for r in subset]
+
+        option = {
+            "title": {"text": f"{table_name} 明细分布（{cat_col} vs {num_cols[0]}）", "left": "center", "textStyle": {"fontSize": 14}},
+            "tooltip": {"trigger": "axis"},
+            "grid": {"left": 50, "right": 30, "top": 50, "bottom": 80},
+            "xAxis": {"type": "category", "data": x_data, "axisLabel": {"rotate": 30}},
+            "yAxis": {"type": "value"},
+            "dataZoom": [{"type": "inside"}, {"type": "slider", "height": 18}],
+            "series": [{"name": num_cols[0], "type": "bar", "data": y_data, "itemStyle": {"color": "#10b981"}}],
+        }
+        return "bar", option
+
+    # 规则 4：fallback
+    return "table", None
+
+
 def get_table_details_smart(table_name: str, limit: int = 20, source: str = "user") -> Dict[str, Any]:
     """
     「明细查询」专用接口（P2-1 修复：Chat 页"明细"按钮直接走此接口，不再走 NL2SQL）
@@ -444,7 +543,11 @@ def get_table_details_smart(table_name: str, limit: int = 20, source: str = "use
         else:
             summary = f"{full} 表共 {cnt:,} 行，展示前 {len(data)} 行明细"
 
-        # 5. 表格型 chart_hint
+        # 5. [P2-1 增强] 智能生成 echarts_option + chart_type
+        chart_type, echarts_option = _build_smart_chart_option(
+            columns=columns, data=data, time_col=time_col, table_name=full
+        )
+
         return {
             "table_name": full,
             "row_count": cnt,
@@ -454,8 +557,9 @@ def get_table_details_smart(table_name: str, limit: int = 20, source: str = "use
             "source": source,
             "summary": summary,
             "order_by": time_col,
-            "chart_type": "table",
-            "chart_hint": "明细为表格型数据，用 Table 组件呈现",
+            "chart_type": chart_type,             # 智能判断（折线/柱状/表格）
+            "echarts_option": echarts_option,     # 给图表 Tab 用
+            "chart_hint": f"{chart_type}型展示",
         }
     finally:
         con.close()
