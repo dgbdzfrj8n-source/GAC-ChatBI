@@ -14,7 +14,6 @@ services:
     runtime: docker
     dockerfilePath: ./backend/Dockerfile
     dockerContext: ./backend
-    plan: free
     region: oregon
     healthCheckPath: /api/health
     autoDeploy: true          # main 推送即自动部署
@@ -36,7 +35,6 @@ services:
   - type: static_site
     name: gac-chat-bi
     rootDir: frontend
-    plan: free
     region: oregon
     buildCommand: npm install && npm run build
     staticPublishPath: ./out  # next export 产物目录
