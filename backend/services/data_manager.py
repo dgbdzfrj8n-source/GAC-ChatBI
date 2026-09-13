@@ -374,6 +374,93 @@ def preview_table(table_name: str, limit: int = 50, source: str = "user") -> Dic
         con.close()
 
 
+# 时间列候选（优先级排序：精确 > 模糊）
+_TIME_COL_PATTERNS = [
+    "sale_date", "order_date", "sign_date", "delivery_date",
+    "expense_date", "report_date", "record_date", "created_at",
+    "date", "dt", "time", "ts",
+]
+
+
+def get_table_details_smart(table_name: str, limit: int = 20, source: str = "user") -> Dict[str, Any]:
+    """
+    「明细查询」专用接口（P2-1 修复：Chat 页"明细"按钮直接走此接口，不再走 NL2SQL）
+
+    智能行为：
+    1. 自动识别时间列（如 sale_date / order_date / date）并按倒序展示
+    2. 自动检测列类型，返回 columns 元信息
+    3. 生成自然语言 summary，便于前端直接渲染
+    4. 标记 chart_hint='table'（前端用 Table 而非 ECharts 呈现）
+    """
+    _ensure_dirs()
+
+    # 选择数据源
+    if source == "business" or table_name in BUSINESS_TABLES:
+        if not DUCKDB_PATH.exists():
+            raise ValueError("业务主库不存在")
+        full = table_name
+        con = duckdb.connect(str(DUCKDB_PATH), read_only=True)
+    else:
+        if not USER_DB_PATH.exists():
+            raise ValueError("用户库为空，请先上传 CSV 文件")
+        full = _validate_table_name(table_name)
+        con = duckdb.connect(str(USER_DB_PATH), read_only=True)
+
+    try:
+        # 1. 取总行数 + 列信息
+        cnt = con.execute(f'SELECT COUNT(*) FROM "{full}"').fetchone()[0]
+        col_rows = con.execute(
+            "SELECT column_name, data_type FROM information_schema.columns "
+            "WHERE table_name = ? ORDER BY ordinal_position",
+            [full],
+        ).fetchall()
+        columns = [{"name": c, "type": t} for c, t in col_rows]
+
+        # 2. 智能选时间列
+        col_names = [c["name"].lower() for c in columns]
+        time_col = None
+        for pat in _TIME_COL_PATTERNS:
+            if pat in col_names:
+                time_col = next(c["name"] for c in columns if c["name"].lower() == pat)
+                break
+
+        # 3. 取数据
+        if time_col:
+            sql = f'SELECT * FROM "{full}" ORDER BY "{time_col}" DESC LIMIT ?'
+            cursor = con.execute(sql, [limit])
+            order_by_clause = f"ORDER BY {time_col} DESC"
+        else:
+            sql = f'SELECT * FROM "{full}" LIMIT ?'
+            cursor = con.execute(sql, [limit])
+            order_by_clause = ""
+
+        cols = [d[0] for d in cursor.description]
+        rows = cursor.fetchall()
+        data = [dict(zip(cols, r)) for r in rows]
+
+        # 4. 生成 summary
+        if time_col:
+            summary = f"{full} 表共 {cnt:,} 行，按 {time_col} 倒序展示前 {len(data)} 行明细"
+        else:
+            summary = f"{full} 表共 {cnt:,} 行，展示前 {len(data)} 行明细"
+
+        # 5. 表格型 chart_hint
+        return {
+            "table_name": full,
+            "row_count": cnt,
+            "columns": columns,
+            "data": data,
+            "limit": limit,
+            "source": source,
+            "summary": summary,
+            "order_by": time_col,
+            "chart_type": "table",
+            "chart_hint": "明细为表格型数据，用 Table 组件呈现",
+        }
+    finally:
+        con.close()
+
+
 def export_table_csv(table_name: str) -> str:
     """导出表为 CSV 字符串"""
     _ensure_dirs()

@@ -93,14 +93,17 @@ export default function DataManagerPage() {
   }
 
   /**
-   * 跳转到智能对话并自动提问该表的明细
-   * 用更明确的查询模板，让 NL2SQL 能稳定命中"明细查看"意图
+   * 跳转到智能对话并查看明细
+   * 用专用协议 DETAILS_TABLE:<表名>:<source>，Chat 页会自动调用 /api/data/details，
+   * 跳过 NL2SQL，确保图表与"明细"语义匹配（不推荐 ECharts，强制表格视图）
    */
-  function handleAskInChat(tableName: string) {
-    const query = `请按日期倒序展示 ${tableName} 表的前 20 行数据明细（用 SQL: SELECT * FROM ${tableName} ORDER BY <时间列> DESC LIMIT 20）`;
+  function handleAskInChat(tableName: string, source: 'user' | 'business' = 'user') {
     if (typeof window !== 'undefined') {
-      localStorage.setItem('gac-pending-query', query);
-      window.location.href = '/?pending=' + encodeURIComponent(query);
+      localStorage.setItem(
+        'gac-pending-query',
+        `DETAILS_TABLE:${tableName}:${source}`
+      );
+      window.location.href = '/?pending=' + encodeURIComponent(`DETAILS_TABLE:${tableName}:${source}`);
     }
   }
 
@@ -420,7 +423,7 @@ export default function DataManagerPage() {
                   👁 预览
                 </button>
                 <button
-                  onClick={() => handleAskInChat(t.table_name)}
+                  onClick={() => handleAskInChat(t.table_name, 'business')}
                   className="flex-1 px-2 py-1.5 text-xs text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors font-medium"
                   title="跳转到智能对话查看数据明细"
                 >

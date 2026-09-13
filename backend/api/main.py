@@ -651,6 +651,27 @@ async def preview_data(table_name: str, limit: int = 50, source: str = "user"):
         raise HTTPException(status_code=500, detail=f"预览失败: {str(e)}")
 
 
+@app.get("/api/data/details/{table_name}", tags=["数据管理"])
+async def get_table_details(table_name: str, limit: int = 20, source: str = "user"):
+    """
+    「明细查询」专用端点（Chat 页"明细"按钮直接调用，不走 NL2SQL）
+
+    返回结构：
+      - columns: 列表字段信息 [{name, type}, ...]
+      - data: 前 N 行原始数据（按表名智能选时间列倒序）
+      - row_count: 总行数
+      - summary: 一句话概要（如"fact_sales_daily 共 9,237 行，按 sale_date 倒序展示前 20 行"）
+      - chart_hint: 表格型（前端用 Table 组件呈现）
+    """
+    try:
+        from services.data_manager import get_table_details_smart
+        return get_table_details_smart(table_name, limit=limit, source=source)
+    except ValueError as ve:
+        raise HTTPException(status_code=404, detail=str(ve))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"明细查询失败: {str(e)}")
+
+
 @app.get("/api/data/export/{table_name}", tags=["数据管理"])
 async def export_data(table_name: str):
     """导出用户表为 CSV 下载"""

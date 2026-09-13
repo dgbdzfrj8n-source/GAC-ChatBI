@@ -116,8 +116,9 @@ export default function ChatPage() {
   }, []);
 
   /**
-   * P2-1: 数据管理「明细」跳转 → 自动填入查询
-   * URL: /?pending=<query> 或 localStorage gac-pending-query
+   * P2-1 增强: 数据管理「明细」跳转 → 跳过 NL2SQL，直接调用 /api/data/details
+   * URL: /?pending=DETAILS_TABLE:<table_name>:<source>
+   *      或 localStorage gac-pending-query (兼容老格式)
    */
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -126,17 +127,125 @@ export default function ChatPage() {
     const pendingStorage = localStorage.getItem('gac-pending-query');
     const pending = pendingParam || pendingStorage;
     if (pending) {
-      setInput(pending);
       localStorage.removeItem('gac-pending-query');
+
       // 清理 URL 上的 pending 参数
       if (pendingParam) {
         const url = new URL(window.location.href);
         url.searchParams.delete('pending');
         window.history.replaceState({}, '', url.pathname);
       }
+
+      // === 新协议：DETAILS_TABLE:<table>:<source> → 直接拉明细，不走 NL2SQL ===
+      if (pending.startsWith('DETAILS_TABLE:')) {
+        const parts = pending.split(':');
+        const tableName = parts[1];
+        const source = parts[2] || 'user';
+        handleDirectDetails(tableName, source);
+        return;
+      }
+
+      // === 兼容老协议：自由文本 query → 仍然填入输入框，用户点发送走 NL2SQL ===
+      setInput(pending);
       setTimeout(() => inputRef.current?.focus(), 200);
     }
   }, []);
+
+  /**
+   * P2-1 修复: 直接查询明细（跳过 NL2SQL）
+   * 数据管理「明细」按钮跳转时调用，确保返回的图表与"明细"语义匹配
+   */
+  const handleDirectDetails = async (tableName: string, source: 'user' | 'business' = 'user') => {
+    setLoading(true);
+    setCurrentResult(null);
+    setStreamStatus("🔍 正在拉取明细...");
+
+    const query = `查看 ${tableName} 表的前 20 行明细`;
+    const userMsgId = Date.now().toString();
+    const assistantId = (Date.now() + 1).toString();
+
+    // 先放用户问句 + AI 占位
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: userMsgId,
+        role: "user",
+        content: query,
+      },
+      {
+        id: assistantId,
+        role: "assistant",
+        content: "",
+        liveThoughts: [],
+        result: null,
+      },
+    ]);
+
+    try {
+      const r = await fetch(
+        `${API_URL}/api/data/details/${encodeURIComponent(tableName)}?limit=20&source=${source}`
+      );
+      const result = await r.json();
+      if (!r.ok) throw new Error(result.detail || "明细查询失败");
+
+      // 包装成 ChatResult 格式（强制 chart_type='table'，避免错误推荐 ECharts）
+      const chatResult: ChartResult = {
+        query,
+        thought_steps: [
+          `🎯 命中「明细查询」专用通道（跳过 NL2SQL）`,
+          `📊 目标表：${result.table_name}（共 ${result.row_count.toLocaleString()} 行）`,
+          `🗂️ 已按 ${result.order_by || '默认顺序'} 倒序展示前 ${result.data.length} 行`,
+          `💡 明细类查询无需图表，用表格清晰呈现`,
+        ],
+        sql: result.order_by
+          ? `SELECT * FROM ${result.table_name} ORDER BY ${result.order_by} DESC LIMIT 20`
+          : `SELECT * FROM ${result.table_name} LIMIT 20`,
+        success: true,
+        data: result.data,
+        columns: result.columns.map((c: any) => c.name),
+        row_count: result.data.length,
+        execution_time_ms: 0,
+        chart_type: "table",  // 强制表格，避免错误推荐柱状/折线
+        echarts_option: undefined,
+        summary_insight: result.summary,
+        engine: "direct_details",
+        error: null,
+      };
+
+      // 替换 AI 占位
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === assistantId ? { ...m, content: "✅ 已加载", result: chatResult } : m
+        )
+      );
+      setCurrentResult(chatResult);
+      setViewMode("table");  // 自动切到表格视图
+      setStreamStatus("");
+    } catch (e: any) {
+      const errResult: ChartResult = {
+        query,
+        thought_steps: [`❌ 明细查询失败：${e.message}`],
+        sql: "",
+        success: false,
+        data: [],
+        columns: [],
+        row_count: 0,
+        execution_time_ms: 0,
+        chart_type: "table",
+        summary_insight: `明细查询失败：${e.message}`,
+        engine: "error",
+        error: e.message,
+      };
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === assistantId ? { ...m, content: "❌", result: errResult } : m
+        )
+      );
+      setStreamStatus("");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   /**
    * Sprint 5.1: SSE 流式问数主入口
