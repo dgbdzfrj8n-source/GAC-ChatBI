@@ -25,6 +25,18 @@ SYSTEM_PROMPT = """你是由广汽集团数字化运营中心打造的“广汽�
 ```sql
 SELECT ...
 ```
+
+7. **差量问题必须返回 gap（缺口/还差）字段**：
+   - 当用户提问包含「还差」「差多少」「缺口」「未达成」「还差几」「差几」「未完成」「不足」「差多少辆」等关键词时，必须额外返回 `target_units - actual_units AS gap_units`（或 `收入差、预算差、成交差` 等）。
+   - 缺口/还差类问法的标准 SQL 必须包含减法字段，否则视为答非所问。
+```sql
+-- 范例：还差多少？
+SELECT 
+    s.actual_units,
+    b.target_units,
+    (b.target_units - s.actual_units) AS gap_units
+FROM ...
+```
 """
 
 FEW_SHOT_EXAMPLES = [

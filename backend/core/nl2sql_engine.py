@@ -51,11 +51,12 @@ SELECT
     s.year_month,
     s.actual_units,
     b.target_units,
-    ROUND(s.actual_units * 100.0 / NULLIF(b.target_units, 0), 2) AS fulfillment_rate_pct
+    ROUND(s.actual_units * 100.0 / NULLIF(b.target_units, 0), 2) AS fulfillment_rate_pct,
+    (b.target_units - s.actual_units) AS gap_units
 FROM monthly_sales s
 JOIN dim_budget_target b 
   ON s.brand_name = b.brand_name AND s.year_month = b.year_month;""",
-        "insight": "2025年3月广汽埃安实际完成交付 4,462 辆，预算目标为 4,615 辆，综合达成率为 96.68%，整体表现稳健，距离月度目标仅存 153 辆缺口。"
+        "insight": "2025年3月广汽埃安实际完成交付 {actual} 辆，预算目标为 {target} 辆，综合达成率为 {rate}%。距离月度目标还差 **{diff} 辆**，整体表现稳健。"
     },
     "各品牌总销量与总营收": {
         "sql": """SELECT 
@@ -262,7 +263,7 @@ class Nl2SqlEngine:
                 "{gq_price}": gv("单车均价_元", "avg_price_yuan"),
                 "{ht_rate}": gv("试驾转化率_pct"),
                 "{gt_rate}": gv("试驾转化率_pct"),
-                "{diff}": "—",
+                "{diff}": gv("差额_辆", "差额", "gap_units", "diff_units"),
                 "{top_channel}": gv("渠道", "channel_name"),
                 "{top_pct}": gv("占比_pct"),
                 "{model}": gv("车型", "model_name"),

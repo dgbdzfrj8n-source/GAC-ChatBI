@@ -47,12 +47,13 @@ SELECT
     s.year_month AS 月份,
     s.actual_units AS 实际交付量,
     b.target_units AS 预算目标量,
-    ROUND(s.actual_units * 100.0 / NULLIF(b.target_units, 0), 2) AS 达成率_pct
+    ROUND(s.actual_units * 100.0 / NULLIF(b.target_units, 0), 2) AS 达成率_pct,
+    (b.target_units - s.actual_units) AS 差额_辆
 FROM monthly_sales s
 JOIN dim_budget_target b
   ON s.brand_name = b.brand_name AND s.year_month = b.year_month
 """,
-        "insight": "{ym} 广汽埃安实际交付 {actual} 辆，预算目标 {target} 辆，综合达成率为 {rate}%。",
+        "insight": "{ym} 广汽埃安实际交付 {actual} 辆，预算目标 {target} 辆，综合达成率为 {rate}%，距离月度目标还差 **{diff} 辆**。",
     },
     {
         "id": "Q02",
