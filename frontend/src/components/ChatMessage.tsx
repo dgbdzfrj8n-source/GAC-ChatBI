@@ -35,7 +35,11 @@ export default function ChatMessage({
   userQuery,
 }: ChatMessageProps) {
   const [thoughtExpanded, setThoughtExpanded] = useState(false);
+  // [P2-1 修复] 用 useEffect 同步父组件 viewMode prop，避免父组件切换时不联动
   const [localViewMode, setLocalViewMode] = useState<"chart" | "table">(viewMode);
+  useEffect(() => {
+    setLocalViewMode(viewMode);
+  }, [viewMode]);
 
   if (role === "user") {
     return (
