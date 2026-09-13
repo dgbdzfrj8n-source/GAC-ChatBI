@@ -76,7 +76,7 @@ def root():
     return {
         "status": "ok",
         "service": "GAC-ChatBI API",
-        "version": "1.1.0",
+        "version": "1.2.0",
         "endpoints": [
             "/api/health",
             "/api/metrics",
