@@ -328,6 +328,18 @@ export default function ChatPage() {
             result: data,
           },
         ]);
+        // P2-5: 派发问数完成通知
+        window.dispatchEvent(
+          new CustomEvent('gac-notification', {
+            detail: {
+              type: 'new_question',
+              severity: 'info',
+              title: `💬 已完成问数：${query.slice(0, 24)}${query.length > 24 ? '…' : ''}`,
+              body: `耗时 ${data.execution_time_ms?.toFixed?.(0) ?? '?'}ms，返回 ${data.row_count ?? 0} 行`,
+              link: '/',
+            },
+          })
+        );
       } else {
         throw new Error(`HTTP ${res.status}`);
       }
@@ -397,6 +409,19 @@ export default function ChatPage() {
       if (res.ok) {
         const data = await res.json();
         setSopData(data);
+        // P2-5: 派发 SOP 完成通知
+        window.dispatchEvent(
+          new CustomEvent('gac-notification', {
+            detail: {
+              type: 'sop_complete',
+              severity: 'success',
+              title: `🔍 深度归因完成：${brand} ${ym}`,
+              body: '4 步归因报告已生成，详见对话面板',
+              link: '/',
+              audience: ['executive', 'analyst', 'product'],
+            },
+          })
+        );
       } else {
         setSopData({ error: `HTTP ${res.status}` });
       }

@@ -6,6 +6,7 @@ import { pageTitleMap } from '@/lib/menu';
 import { useBrand, Brand } from '@/contexts/BrandContext';
 import { useRole } from '@/contexts/RoleContext';
 import { getRoleColorClasses } from '@/lib/roles';
+import NotificationBell from '@/components/NotificationBell';
 import GacBadge from './GacBadge';
 import { userBadge } from '@/lib/menu';
 
@@ -176,6 +177,9 @@ export default function TopBar() {
             ))}
           </select>
         </div>
+
+        {/* 通知中心（P2-5） */}
+        <NotificationBell />
 
         {/* 演示模式按钮（P2-6） */}
         <button

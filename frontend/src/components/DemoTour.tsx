@@ -66,6 +66,16 @@ const STEPS: TourStep[] = [
     tooltipPlacement: 'right',
   },
   {
+    id: 'notification',
+    title: '通知中心 🔔',
+    description:
+      '顶部铃铛按角色推送实时消息：\n\n🚨 KPI 异常预警 · 🔍 归因完成 · 📉 预算偏差 · ⚙️ 系统升级\n\n未读数小红点提醒，类型筛选 chip 切换，下拉时间线样式。',
+    icon: '🔔',
+    anchor: 'notification-bell',
+    tooltipPlacement: 'bottom',
+    cta: '下一步看语义层',
+  },
+  {
     id: 'semantic',
     title: '语义层管理（AI PM 加分项）',
     description:
