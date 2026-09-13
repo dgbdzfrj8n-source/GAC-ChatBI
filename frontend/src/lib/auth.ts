@@ -1,12 +1,12 @@
-"""
-[Sprint 10] 前端鉴权工具
-
-功能：
-  1. Token 持久化（localStorage）
-  2. 自动从 localStorage 读取用户信息
-  3. fetch 包装：自动加 Authorization 头
-  4. 401 自动跳登录页
-*/
+/**
+ * [Sprint 10] 前端鉴权工具
+ *
+ * 功能：
+ *   1. Token 持久化（localStorage）
+ *   2. 自动从 localStorage 读取用户信息
+ *   3. fetch 包装：自动加 Authorization 头
+ *   4. 401 自动跳登录页
+ */
 
 const TOKEN_KEY = "gac_chatbi_token";
 const USER_KEY = "gac_chatbi_user";
