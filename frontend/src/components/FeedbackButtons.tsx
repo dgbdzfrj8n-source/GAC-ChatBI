@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRole } from '@/contexts/RoleContext';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://gac-chatbi-api.onrender.com';
 
 const FEEDBACK_LABELS: Record<string, { label: string; color: string; icon: string }[]> = {
   negative: [

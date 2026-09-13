@@ -8,7 +8,7 @@ import { Activity, TrendingUp, AlertTriangle, Car, DollarSign, Users, ArrowUpRig
 const TrendChart = dynamic(() => import("@/components/dashboard/TrendChart"), { ssr: false });
 const BrandRanking = dynamic(() => import("@/components/dashboard/BrandRanking"), { ssr: false });
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://gac-chatbi-api.onrender.com";
 
 interface DashboardSnapshot {
   meta: { latest_month: string; prev_month: string; generated_at: string };

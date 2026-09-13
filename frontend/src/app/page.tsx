@@ -22,7 +22,7 @@ import BadCaseModal from "@/components/BadCaseModal";
 import SopResultModal from "@/components/SopResultModal";
 import { streamChat } from "@/lib/sse";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://gac-chatbi-api.onrender.com";
 const USE_STREAMING = true; // Sprint 5.1: 启用 SSE 流式输出
 
 interface ChartResult {

@@ -11,7 +11,7 @@ interface DemoAccount {
 }
 
 const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "https://gac-chatbi.onrender.com";
+  process.env.NEXT_PUBLIC_API_URL || "https://gac-chatbi-api.onrender.com";
 
 export default function LoginPage() {
   const router = useRouter();

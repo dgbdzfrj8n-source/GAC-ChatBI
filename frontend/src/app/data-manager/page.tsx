@@ -8,8 +8,8 @@ const API_URL =
   typeof window !== 'undefined'
     ? localStorage.getItem('apiUrl') ||
       process.env.NEXT_PUBLIC_API_URL ||
-      'http://localhost:8000'
-    : process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      'https://gac-chatbi-api.onrender.com'
+    : process.env.NEXT_PUBLIC_API_URL || 'https://gac-chatbi-api.onrender.com';
 
 interface ColumnInfo {
   name: string;

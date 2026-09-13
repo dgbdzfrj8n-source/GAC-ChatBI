@@ -5,8 +5,8 @@ import Link from 'next/link';
 
 const API_URL =
   typeof window !== 'undefined'
-    ? localStorage.getItem('apiUrl') || 'https://gac-chatbi-api.onrender.com'
-    : 'https://gac-chatbi-api.onrender.com';
+    ? localStorage.getItem('apiUrl') || process.env.NEXT_PUBLIC_API_URL || 'https://gac-chatbi-api.onrender.com'
+    : process.env.NEXT_PUBLIC_API_URL || 'https://gac-chatbi-api.onrender.com';
 
 interface Metric {
   metric_id: string;
