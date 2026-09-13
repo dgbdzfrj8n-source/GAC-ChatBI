@@ -87,7 +87,7 @@ export default function Sidebar() {
       {/* 底部版本信息 */}
       <div className="px-4 py-3 border-t border-gac-gray-200 flex-shrink-0">
         <div className="text-[11px] text-gac-gray-500 text-center leading-relaxed">
-          <div>v1.8.0 · Sprint 8</div>
+          <div>v1.9.0 · Sprint 9</div>
           <div className="text-gac-primary mt-0.5 font-medium">谢志锋</div>
         </div>
       </div>

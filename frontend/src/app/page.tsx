@@ -502,7 +502,7 @@ export default function ChatPage() {
                 基于集团真实经营数据，AI 驱动的自然语言问数与可视化分析助手。
                 <br />
                 <span className="text-emerald-600 font-medium">
-                  Sprint 8 已上线：品牌切换 · AI 闲聊兜底 · SQL 优化
+                  Sprint 9 已上线：15 条精准问数 · 指标维度合并 · 数据管理默认表 · 历史会话 4 功能
                 </span>
               </p>
             </div>
