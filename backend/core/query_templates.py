@@ -407,6 +407,23 @@ SMALL_TALK_GUIDE = {
 
     # === 身份确认 ===
     "chatbi": "广汽云 ChatBI 是广汽集团经营分析专属 AI 助手，覆盖：\n• 🚗 整车销售分析\n• 💰 经营财务（达成率 / 预算）\n• 📢 市场营销（CPL / ROI）\n• 🏪 渠道经营（客流漏斗）\n\n试试点击下方 15 条快捷提问。",
+
+    # === [Sprint 10 新增] 技术 / 架构 / 实现 类闲聊 ===
+    "api": "📡 **我接入的 API 与数据源**\n\n**数据底座**：\n• DuckDB（嵌入式 OLAP 引擎，毫秒级响应）\n• 业务主库 `gac_bi.duckdb`：3 张核心事实表\n  - `fact_sales_daily` 整车销售明细\n  - `dim_budget_monthly` 经营预算\n  - `fact_marketing_channel_daily` 市场营销\n\n**AI 能力**：\n• 大模型（DeepSeek / OpenAI 兼容协议）→ NL2SQL\n• 自研 Schema Linker + 指标语义层（`metrics_dict.json`）\n\n**前端**：\n• Next.js 14 + ECharts 5，部署在 Render + Vercel\n\n💡 详细技术架构可阅读项目根目录的 `GAC_CHATBI_IMPLEMENTATION_GUIDE.md`",
+
+    "llm": "🧠 **我的大模型基础**\n\n• 主用模型：**DeepSeek-V3**（中文 NL2SQL 性能强、成本低）\n• 备选：**GPT-4o-mini**（推理兜底）\n• 调用方式：OpenAI 兼容 Chat Completions API\n• 接入点：`backend/core/nl2sql_engine.py` → `LLMClient`\n• 业务保护：强制只读校验 + 指标语义层 + Few-shot prompt\n\n🔒 **绝不做的事**：\n• 任何 INSERT/UPDATE/DELETE/DROP\n• 生成 SQL 时不暴露业务表全 schema，只传相关表结构\n• 闲聊/技术问题不走 NL2SQL，直接返回纯文本回复",
+
+    "模型": "🧠 **底层模型**：DeepSeek-V3 为主，GPT-4o-mini 兜底。\n\n**为什么选 DeepSeek**：\n• 中文 SQL 生成准确率高（NL2SQL 评测领先）\n• 性价比：比 GPT-4o 便宜 30+\n• 支持 OpenAI 兼容协议，无缝切换\n\n**Prompt 工程**：\n• 业务指标口径锁定（`metrics_dict.json`）\n• Few-shot 案例（`backend/core/prompts.py`）\n• Schema Linker 自动剪枝无关表",
+
+    "数据源": "📦 **数据源说明**\n\n**生产环境**：\n• 业务主库：`backend/data/gac_bi.duckdb`（只读，部署时挂载）\n• 用户上传：`backend/data/user_uploads/user_data.duckdb`（用户私有表）\n• 历史会话：`backend/data/conversations.db`（SQLite）\n\n**本地开发**：\n• 测试库：`backend/data/gac_bi_test.duckdb`（含 mock 数据）\n• 切换由 `NL2SQLEngine.use_test_db` 控制\n\n**表清单**（业务主库）：\n1. `fact_sales_daily` 整车销售\n2. `dim_budget_monthly` 预算\n3. `fact_marketing_channel_daily` 营销",
+
+    "架构": "🏗️ **系统架构**（4 层）：\n\n```\n┌─────────────────────────────────────┐\n│  L1 前端 (Next.js 14 + ECharts)      │\n│  - Chat 页 · 数据管理 · 历史会话      │\n└──────────────┬──────────────────────┘\n               │ REST/SSE\n┌──────────────▼──────────────────────┐\n│  L2 API 网关 (FastAPI)               │\n│  - 安全校验 · 流式响应 · 闲聊分流     │\n└──────────────┬──────────────────────┘\n               │\n┌──────────────▼──────────────────────┐\n│  L3 NL2SQL 引擎                     │\n│  - Schema Linker · 指标语义层        │\n│  - LLM 调用 · SQL 校验 · 自愈       │\n└──────────────┬──────────────────────┘\n               │\n┌──────────────▼──────────────────────┐\n│  L4 数据底座 (DuckDB)               │\n│  - 业务主库 + 用户上传 + 历史会话     │\n└─────────────────────────────────────┘\n```\n\n详细架构图见 `GAC_CHATBI_IMPLEMENTATION_GUIDE.md`",
+
+    "技术栈": "🛠️ **技术栈一览**\n\n**前端**：Next.js 14 (App Router) · TypeScript · Tailwind · ECharts 5 · Lucide Icons\n\n**后端**：FastAPI · Python 3.10+ · Pydantic v2 · DuckDB · SQLite (历史会话)\n\n**AI**：DeepSeek-V3 / GPT-4o-mini · Schema Linker · 指标语义层 · Few-shot Prompt\n\n**部署**：\n• 前端：Vercel / Render\n• 后端：Render Web Service（Docker）\n• 数据：Render Disk（持久化 DuckDB）\n\n**DevOps**：GitHub Actions · Docker · 环境变量注入",
+
+    "怎么做的": "🛠️ **实现原理**（一句话总结）：\n\n1. 用户输入自然语言问题\n2. Schema Linker 自动选出相关表 + 字段\n3. 把精简后的表结构 + 指标口径 + Few-shot 喂给 LLM\n4. LLM 生成 DuckDB 兼容 SQL\n5. SQL 走「只读 + 黑白名单」双重校验\n6. DuckDB 执行 → 返回数据 + 图表配置\n7. 前端 ECharts 渲染 + 流式推送自然语言洞察\n\n**亮点**：\n• 闲聊/技术问题走纯文本通道，不浪费 LLM token\n• 指标口径锁定在 `metrics_dict.json`，业务一致性 100%\n• 自动归因：销量波动时自动下钻子维度",
+
+    "底层": "🔧 **底层实现**\n\n**数据库**：DuckDB（嵌入式 OLAP，比 SQLite 快 10x+，比 PostgreSQL 部署简单）\n\n**NL2SQL 流程**：\n```\n自然语言 → Schema Linker → Prompt 拼装 → LLM →\nSQL 校验（只读 + 危险词） → DuckDB 执行 →\n指标模板渲染 → ECharts + 文字洞察\n```\n\n**安全护栏**：\n• SQL 必须以 SELECT/WITH 开头\n• 严禁 INSERT/UPDATE/DELETE/DROP/CREATE/ALTER\n• 表名必须在白名单（3 张业务表 + 用户上传表）\n• 除零保护：自动 `NULLIF(val, 0)`\n\n**Sprint 进度**：当前 Sprint 9，15 条快捷问数 + 9 项语义层优化上线",
 }
 
 
