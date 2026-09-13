@@ -1,13 +1,8 @@
 import type { Metadata } from 'next';
 import './globals.css';
-import Sidebar from '@/components/Sidebar';
-import TopBar from '@/components/TopBar';
 import DemoTour from '@/components/DemoTour';
-import { BrandProvider } from '@/contexts/BrandContext';
-import { RoleProvider, useRole } from '@/contexts/RoleContext';
-import { NotificationProvider } from '@/contexts/NotificationContext';
-import { PermissionGuard } from '@/components/PermissionGuard';
-import NotificationBridge from '@/components/NotificationBridge';
+import { RoleProvider } from '@/contexts/RoleContext';
+import { RoleAwareNotificationLayer } from '@/components/RoleAwareNotificationLayer';
 
 export const metadata: Metadata = {
   title: '广汽云 ChatBI - 智能经营问数 Agent',
@@ -53,34 +48,5 @@ export default function RootLayout({
         <DemoTour />
       </body>
     </html>
-  );
-}
-
-// 内层组件：必须 useRole 才能用 NotificationProvider
-function RoleAwareNotificationLayer({ children }: { children: React.ReactNode }) {
-  const { role } = useRole();
-  return (
-    <NotificationProvider role={role}>
-      <NotificationBridge />
-      {/* 品牌上下文（全局状态） */}
-      <BrandProvider>
-        {/* ====== 主体：左侧菜单 + 右侧内容 ====== */}
-        <div className="flex h-screen overflow-hidden">
-          {/* 左侧侧边栏 */}
-          <Sidebar />
-
-          {/* 右侧主区域 */}
-          <div className="flex-1 flex flex-col overflow-hidden pl-3">
-            {/* 顶部栏 */}
-            <TopBar />
-
-            {/* 内容区（可滚动；聊天页面会用 chat-full 容器覆盖此处的内边距） */}
-            <main className="flex-1 overflow-y-auto bg-gac-gray-50">
-              <PermissionGuard>{children}</PermissionGuard>
-            </main>
-          </div>
-        </div>
-      </BrandProvider>
-    </NotificationProvider>
   );
 }
