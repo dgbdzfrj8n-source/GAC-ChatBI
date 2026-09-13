@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ChevronDown, ChevronUp, BarChart3, Table2 } from "lucide-react";
 import DataVisualizer from "./DataVisualizer";
 import FeedbackButtons from "./FeedbackButtons";
