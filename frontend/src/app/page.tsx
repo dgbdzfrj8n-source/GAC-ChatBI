@@ -140,7 +140,7 @@ export default function ChatPage() {
       if (pending.startsWith('DETAILS_TABLE:')) {
         const parts = pending.split(':');
         const tableName = parts[1];
-        const source = parts[2] || 'user';
+        const source: 'user' | 'business' = parts[2] === 'business' ? 'business' : 'user';
         handleDirectDetails(tableName, source);
         return;
       }
@@ -165,7 +165,7 @@ export default function ChatPage() {
     const assistantId = (Date.now() + 1).toString();
 
     // 先放用户问句 + AI 占位
-    setMessages((prev) => [
+    setMessages((prev: Message[]) => [
       ...prev,
       {
         id: userMsgId,
@@ -177,7 +177,7 @@ export default function ChatPage() {
         role: "assistant",
         content: "",
         liveThoughts: [],
-        result: null,
+        result: undefined,
       },
     ]);
 
