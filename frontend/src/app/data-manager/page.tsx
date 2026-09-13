@@ -2,10 +2,14 @@
 
 import { useEffect, useState, useRef } from 'react';
 
+// 优先使用构建期注入的 NEXT_PUBLIC_API_URL，fallback 到 localhost（本地开发）
+// 用户也可以在浏览器 localStorage 里手动覆盖（key: apiUrl）
 const API_URL =
   typeof window !== 'undefined'
-    ? localStorage.getItem('apiUrl') || 'https://gac-chatbi-api.onrender.com'
-    : 'https://gac-chatbi-api.onrender.com';
+    ? localStorage.getItem('apiUrl') ||
+      process.env.NEXT_PUBLIC_API_URL ||
+      'http://localhost:8000'
+    : process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 interface ColumnInfo {
   name: string;

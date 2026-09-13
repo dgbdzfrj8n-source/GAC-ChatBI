@@ -52,3 +52,7 @@ services:
     envVars:
       - key: NODE_VERSION
         value: "20"
+      # 前端 build 时把后端地址编译进去（Next.js 静态导出会在 build 期替换）
+      # Render Blueprint 创建 gac-chatbi-api 时会用同名 onrender.com 子域名
+      - key: NEXT_PUBLIC_API_URL
+        value: https://gac-chatbi-api.onrender.com
