@@ -46,7 +46,7 @@ interface Snapshot {
   glossary: Term[];
 }
 
-type TabKey = 'metrics' | 'dimensions' | 'glossary';
+type TabKey = 'metrics' | 'glossary';
 
 export default function SemanticLayerPage() {
   const [snap, setSnap] = useState<Snapshot | null>(null);
@@ -135,8 +135,7 @@ export default function SemanticLayerPage() {
   }
 
   const tabs: { key: TabKey; label: string; icon: string; count: number }[] = [
-    { key: 'metrics', label: '指标层', icon: '📐', count: snap.metrics.length },
-    { key: 'dimensions', label: '维度层', icon: '🧩', count: snap.dimensions.length },
+    { key: 'metrics', label: '指标 + 维度层', icon: '📐', count: snap.metrics.length + snap.dimensions.length },
     { key: 'glossary', label: '同义词层', icon: '📖', count: snap.glossary.length },
   ];
 
@@ -210,15 +209,18 @@ export default function SemanticLayerPage() {
 
       {/* Tab content */}
       {tab === 'metrics' && (
-        <MetricsTab
-          metrics={snap.metrics}
-          onEdit={(m) => {
-            setEditing(m);
-            setEditKind('metric');
-          }}
-        />
+        <>
+          <MetricsTab
+            metrics={snap.metrics}
+            onEdit={(m) => {
+              setEditing(m);
+              setEditKind('metric');
+            }}
+          />
+          {/* 维度层作为子区域嵌入（原 P1「数据表」菜单内容） */}
+          <DimensionsTab dimensions={snap.dimensions} embedded />
+        </>
       )}
-      {tab === 'dimensions' && <DimensionsTab dimensions={snap.dimensions} />}
       {tab === 'glossary' && (
         <GlossaryTab
           terms={snap.glossary}
@@ -293,7 +295,7 @@ function MetricsTab({ metrics, onEdit }: { metrics: Metric[]; onEdit: (m: Metric
   );
 }
 
-function DimensionsTab({ dimensions }: { dimensions: Dimension[] }) {
+function DimensionsTab({ dimensions, embedded = false }: { dimensions: Dimension[]; embedded?: boolean }) {
   // 按 table 分组
   const grouped = useMemo(() => {
     const g: Record<string, Dimension[]> = {};
@@ -311,6 +313,23 @@ function DimensionsTab({ dimensions }: { dimensions: Dimension[] }) {
 
   return (
     <div className="space-y-4">
+      {/* embedded 模式下显示标题（指标 + 维度合并 Tab） */}
+      {embedded && (
+        <div className="content-card p-5 border-l-4 border-l-indigo-500">
+          <div className="flex items-center gap-2">
+            <span className="text-xl">🧩</span>
+            <h3 className="text-base font-semibold text-gac-gray-900">
+              维度层 · {dimensions.length} 个字段 × {Object.keys(grouped).length} 张表
+            </h3>
+            <span className="text-xs text-gac-gray-500 ml-auto">
+              自动从 schema 抽取 · 只读
+            </span>
+          </div>
+          <p className="text-xs text-gac-gray-500 mt-1">
+            维度是指标的「切片维度」（如品牌、车型、区域、渠道），用于下钻与分组聚合。
+          </p>
+        </div>
+      )}
       {Object.entries(grouped).map(([table, dims]) => (
         <div key={table} className="content-card overflow-hidden">
           <div className="px-4 py-3 bg-gac-gray-50 border-b border-gac-gray-200 flex items-center justify-between">

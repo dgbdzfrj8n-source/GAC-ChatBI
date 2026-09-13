@@ -18,6 +18,11 @@ from core.prompt_templates import (
     build_nl2sql_prompt,
     build_self_healing_prompt
 )
+from core.query_templates import (
+    QUERY_TEMPLATES,
+    match_query_template,
+    match_small_talk,
+)
 
 # 尝试载入 openai SDK
 try:
@@ -121,7 +126,12 @@ class Nl2SqlEngine:
             return None
 
     def _match_mock_knowledge(self, query: str) -> Optional[Dict[str, str]]:
-        """从 Mock 库中模糊匹配问答"""
+        """优先匹配 15 条精确问数模板库（覆盖前端 SuggestionPills）"""
+        tmpl = match_query_template(query)
+        if tmpl:
+            sql = tmpl["sql"].replace("{ym}", "2025-03")  # 默认月份
+            return {"sql": sql, "insight": tmpl["insight"], "template_id": tmpl["id"]}
+        # 兼容老的 mock 库（兜底）
         for k, v in MOCK_KNOWLEDGE_BASE.items():
             words = [w for w in ["埃安", "达成率", "渠道", "获客", "传祺", "华东", "总销量", "营收"] if w in k]
             if words and all(w in query for w in words):
@@ -137,7 +147,7 @@ class Nl2SqlEngine:
         "这个系统", "这个平台", "chatbi",
     ]
 
-    META_ANSWER = """我是**广汽云 ChatBI**，广汽集团智能经营分析团队的 AI 问数助手。
+    META_ANSWER = """我是**广汽云 ChatBI**，由谢志锋主导构建的智能经营分析助手。
 
 **我能帮你做什么：**
 • 📊 查询各品牌（埃安/传祺/昊铂）的销量、营收、达成率
@@ -146,28 +156,49 @@ class Nl2SqlEngine:
 • 📈 生成趋势图与对比报表
 • 🔍 深度归因：定位销量波动的根因
 
-**快捷提问示例：**
+**快捷提问示例（点击下方 15 条直达）：**
 • "2025年3月埃安销量与预算达成率"
 • "各品牌总交付量与总营收"
 • "抖音渠道 CPL 排名"
 • "昊铂 GT 与 HT 客流转化率对比"
 
-直接输入您想了解的问题即可！😊"""
+直接输入您想了解的问题，或点击下方快捷提问按钮！😊"""
 
     def _is_meta_question(self, query: str) -> bool:
         """判断是否为闲聊/元问题"""
         q = query.strip().lower()
+        if match_small_talk(query):
+            return True
         return any(t in q for t in self.SMART_TALK_TRIGGERS)
 
     def ask(self, query: str, force_mock: bool = False) -> Dict[str, Any]:
         """
         核心问数调度主流程：
-        1. 语义剪枝
-        2. 生成 SQL（API 或 Mock）
-        3. AST 检查与执行
-        4. 报错 1 次自愈重试
+        1. 闲聊/元问题引导
+        2. 15 条精确模板匹配
+        3. LLM 生成
+        4. AST 检查与执行
+        5. 报错 1 次自愈重试
         """
-        # 0. 闲聊/元问题兜底
+        # 0. 闲聊/元问题兜底（精准引导）
+        small_talk_reply = match_small_talk(query)
+        if small_talk_reply:
+            return {
+                "query": query,
+                "thought_steps": ["命中闲聊引导，返回智能引导语"],
+                "sql": None,
+                "success": True,
+                "data": [],
+                "columns": [],
+                "row_count": 0,
+                "execution_time_ms": 0,
+                "error": None,
+                "summary_insight": small_talk_reply,
+                "healed": False,
+                "engine": "guide",
+                "is_meta_answer": True,
+            }
+
         if self._is_meta_question(query):
             return {
                 "query": query,

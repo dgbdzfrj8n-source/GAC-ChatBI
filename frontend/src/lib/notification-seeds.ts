@@ -35,7 +35,7 @@ const SAMPLES: Array<Omit<NotificationItem, 'id' | 'timestamp' | 'read'>> = [
     severity: 'warning',
     title: '📉 营销渠道 CPL 超预算 12%',
     body: '广汽埃安抖音渠道 3 月 CPL 达 ¥328，超预算上限 ¥300',
-    link: '/metrics',
+    link: '/semantic',
     audience: ['analyst', 'product'],
   },
   {
@@ -59,7 +59,7 @@ const SAMPLES: Array<Omit<NotificationItem, 'id' | 'timestamp' | 'read'>> = [
     severity: 'success',
     title: '👍 用户采纳了你的口径修正建议',
     body: '"4 月新能源销量达成率" 已自动并入指标库',
-    link: '/metrics',
+    link: '/semantic',
     audience: ['analyst', 'product'],
   },
   {
@@ -90,7 +90,7 @@ const SAMPLES: Array<Omit<NotificationItem, 'id' | 'timestamp' | 'read'>> = [
     severity: 'warning',
     title: '📉 广汽埃安展厅客流转化率低于目标',
     body: '广州天河店转化率 8.7%，目标值 12%',
-    link: '/metrics',
+    link: '/semantic',
     audience: ['analyst', 'product'],
   },
   {

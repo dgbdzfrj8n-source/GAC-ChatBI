@@ -64,8 +64,6 @@ export const ROLE_PERMISSIONS: Record<string, Role[]> = {
   '/':               ['executive', 'analyst', 'product', 'guest'],
   '/dashboard':      ['executive', 'analyst', 'product', 'guest'],
   '/reports':        ['executive', 'analyst', 'product'],
-  '/metrics':        ['executive', 'analyst', 'product'],
-  '/tables':         ['analyst', 'product'],
   '/data-manager':   ['analyst', 'product'],
   '/history':        ['analyst', 'product'],
   '/semantic':       ['product'],

@@ -154,6 +154,58 @@ def list_user_tables() -> List[Dict[str, Any]]:
         con.close()
 
 
+def get_default_tables_meta() -> Dict[str, Any]:
+    """
+    返回 3 张默认业务表的元信息（让数据管理页打开就有内容）。
+    这些是业务主库的内置事实表（只读），不占用用户配额。
+    """
+    if not HAS_DUCKDB:
+        raise RuntimeError("DuckDB 未安装")
+    if not DUCKDB_PATH.exists():
+        return {"tables": [], "note": "业务主库不存在"}
+
+    con = duckdb.connect(str(DUCKDB_PATH), read_only=True)
+    try:
+        # 业务主库的几张核心表（按主题分组）
+        targets = [
+            ("fact_sales_daily",        "整车销售事实表（日）",  "整车销售", "📊"),
+            ("dim_budget_target",       "经营预算目标表（月）",  "经营财务", "🎯"),
+            ("fact_marketing_expenses", "市场营销支出事实表（日）","市场营销", "📢"),
+        ]
+        result = []
+        for tname, label, domain, icon in targets:
+            try:
+                cnt = con.execute(f'SELECT COUNT(*) FROM "{tname}"').fetchone()[0]
+                cols = con.execute(
+                    "SELECT column_name, data_type FROM information_schema.columns "
+                    "WHERE table_name = ? ORDER BY ordinal_position",
+                    [tname],
+                ).fetchall()
+                result.append({
+                    "table_name": tname,
+                    "label": label,
+                    "domain": domain,
+                    "icon": icon,
+                    "is_default": True,
+                    "row_count": cnt,
+                    "column_count": len(cols),
+                    "columns": [{"name": c, "type": t} for c, t in cols],
+                })
+            except Exception as e:
+                result.append({
+                    "table_name": tname,
+                    "label": label,
+                    "error": str(e),
+                })
+        return {
+            "tables": result,
+            "total": len(result),
+            "note": "内置业务事实表 · 只读 · 不占用户配额",
+        }
+    finally:
+        con.close()
+
+
 def import_csv(content: str, table_name: str) -> Dict[str, Any]:
     """
     导入 CSV 到用户库

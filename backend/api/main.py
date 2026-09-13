@@ -144,6 +144,35 @@ def chat_query(req: ChatQueryRequest):
         error=result.get("error")
     )
 
+
+@app.get("/api/chat/quick-suggestions", tags=["智能问数"])
+def quick_suggestions():
+    """
+    返回 15 条精确问数快捷提问 + 每条对应的 SQL 模板元信息。
+    前端用此接口渲染 SuggestionPills（每条保证 100% 命中正确 SQL）。
+    """
+    from core.query_templates import QUERY_TEMPLATES
+    return {
+        "suggestions": [
+            {
+                "id": t["id"],
+                "label": t["label"],
+                "domain": t["domain"],
+                "chart_hint": t["chart_hint"],
+                "icon": {
+                    "整车销售": "🚗",
+                    "经营财务": "💰",
+                    "市场营销": "📢",
+                    "渠道经营": "🏪",
+                }.get(t["domain"], "📊"),
+            }
+            for t in QUERY_TEMPLATES
+        ],
+        "total": len(QUERY_TEMPLATES),
+        "version": "1.8.1",
+    }
+
+
 @app.post("/api/feedback", tags=["运营治理"])
 def collect_bad_case(req: BadCaseFeedbackRequest):
     """Bad Case 反馈收集池"""
@@ -548,6 +577,19 @@ async def list_uploads():
         return {"success": True, "tables": list_user_tables()}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"读取用户表失败: {str(e)}")
+
+
+@app.get("/api/data/default-tables", tags=["数据管理"])
+async def default_tables():
+    """
+    返回 3 张默认业务表的元信息（让用户打开数据管理页就有内容看）。
+    用户也可以上传自己的 CSV 表（list_uploads 返回）。
+    """
+    try:
+        from services.data_manager import get_default_tables_meta
+        return get_default_tables_meta()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"读取默认表失败: {str(e)}")
 
 
 @app.get("/api/data/stats", tags=["数据管理"])

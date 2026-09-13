@@ -24,6 +24,18 @@ interface UserTable {
   error?: string;
 }
 
+interface DefaultTable {
+  table_name: string;
+  label: string;
+  domain: string;
+  icon: string;
+  is_default: boolean;
+  row_count: number;
+  column_count: number;
+  columns: ColumnInfo[];
+  error?: string;
+}
+
 interface Stats {
   table_count: number;
   total_rows: number;
@@ -39,6 +51,7 @@ interface Stats {
 
 export default function DataManagerPage() {
   const [tables, setTables] = useState<UserTable[]>([]);
+  const [defaultTables, setDefaultTables] = useState<any[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
   const [previewing, setPreviewing] = useState<string | null>(null);
@@ -64,16 +77,30 @@ export default function DataManagerPage() {
   async function refresh() {
     setLoading(true);
     try {
-      const [a, b] = await Promise.all([
+      const [a, b, c] = await Promise.all([
         fetch(`${API_URL}/api/data/uploads`).then((r) => r.json()),
         fetch(`${API_URL}/api/data/stats`).then((r) => r.json()),
+        fetch(`${API_URL}/api/data/default-tables`).then((r) => r.json()),
       ]);
       setTables(a.tables || []);
       setStats(b);
+      setDefaultTables(c.tables || []);
     } catch (e: any) {
       showToast('err', `加载失败: ${e.message}`);
     } finally {
       setLoading(false);
+    }
+  }
+
+  /**
+   * 跳转到智能对话并自动提问该表的明细
+   * 例如：fact_sales_daily → "查看 fact_sales_daily 表前 20 行明细"
+   */
+  function handleAskInChat(tableName: string) {
+    const query = `请查看 ${tableName} 表的最近 20 行数据明细`;
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('gac-pending-query', query);
+      window.location.href = '/?pending=' + encodeURIComponent(query);
     }
   }
 
@@ -313,6 +340,13 @@ export default function DataManagerPage() {
                       {previewing === t.table_name ? '加载…' : '👁 预览'}
                     </button>
                     <button
+                      onClick={() => handleAskInChat(t.table_name)}
+                      className="px-2.5 py-1.5 text-xs text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-md transition-colors"
+                      title="跳转到智能对话查看数据明细"
+                    >
+                      🔍 明细
+                    </button>
+                    <button
                       onClick={() => handleExport(t.table_name)}
                       className="px-2.5 py-1.5 text-xs text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-md transition-colors"
                     >
@@ -330,6 +364,70 @@ export default function DataManagerPage() {
             ))}
           </div>
         )}
+      </div>
+
+      {/* 业务主库默认表（开箱即用 · 只读 · 不占用户配额） */}
+      <div className="content-card p-5 border-l-4 border-l-blue-500">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-base font-semibold text-gac-gray-900 flex items-center gap-2">
+              📚 业务主库默认表
+              <span className="text-xs px-2 py-0.5 bg-blue-50 text-blue-700 rounded font-mono">
+                {defaultTables.length} 张
+              </span>
+            </h3>
+            <p className="text-xs text-gac-gray-500 mt-1">
+              这些是广汽集团经营分析内置的 3 张事实表，开箱即用，只读。点击「明细」可直接在智能对话中查询。
+            </p>
+          </div>
+        </div>
+        <div className="grid gap-3 md:grid-cols-3">
+          {defaultTables.map((t) => (
+            <div
+              key={t.table_name}
+              className="border border-blue-100 bg-gradient-to-br from-blue-50/50 to-white rounded-lg p-4 hover:shadow-md transition-shadow"
+            >
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-2xl">{t.icon || '📊'}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold text-sm text-gac-gray-900 truncate">
+                    {t.label || t.table_name}
+                  </div>
+                  <div className="font-mono text-xs text-gac-gray-500 truncate">
+                    {t.table_name}
+                  </div>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-1 mb-3">
+                <span className="text-xs px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded">
+                  {t.domain}
+                </span>
+                <span className="text-xs px-1.5 py-0.5 bg-gac-gray-100 text-gac-gray-700 rounded">
+                  {t.row_count?.toLocaleString() || 0} 行
+                </span>
+                <span className="text-xs px-1.5 py-0.5 bg-gac-gray-100 text-gac-gray-700 rounded">
+                  {t.column_count || 0} 列
+                </span>
+              </div>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => handlePreview(t.table_name)}
+                  disabled={previewing === t.table_name}
+                  className="flex-1 px-2 py-1.5 text-xs text-blue-700 bg-white border border-blue-200 hover:bg-blue-50 rounded-md disabled:opacity-50 transition-colors"
+                >
+                  👁 预览
+                </button>
+                <button
+                  onClick={() => handleAskInChat(t.table_name)}
+                  className="flex-1 px-2 py-1.5 text-xs text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors font-medium"
+                  title="跳转到智能对话查看数据明细"
+                >
+                  🔍 明细（→ Chat）
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Preview Modal */}

@@ -116,6 +116,29 @@ export default function ChatPage() {
   }, []);
 
   /**
+   * P2-1: 数据管理「明细」跳转 → 自动填入查询
+   * URL: /?pending=<query> 或 localStorage gac-pending-query
+   */
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const pendingParam = params.get('pending');
+    const pendingStorage = localStorage.getItem('gac-pending-query');
+    const pending = pendingParam || pendingStorage;
+    if (pending) {
+      setInput(pending);
+      localStorage.removeItem('gac-pending-query');
+      // 清理 URL 上的 pending 参数
+      if (pendingParam) {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('pending');
+        window.history.replaceState({}, '', url.pathname);
+      }
+      setTimeout(() => inputRef.current?.focus(), 200);
+    }
+  }, []);
+
+  /**
    * Sprint 5.1: SSE 流式问数主入口
    */
   const handleSendStream = async (query: string) => {

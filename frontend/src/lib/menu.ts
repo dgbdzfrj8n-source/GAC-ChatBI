@@ -50,19 +50,13 @@ export const menuConfig: MenuGroup[] = [
     label: '业务资产',
     icon: '📋',
     items: [
+      // P1-P2: 指标库/数据表 已并入「语义层」（指标层 + 维度层），菜单精简
       {
-        id: 'metrics',
-        label: '指标库',
-        icon: '📐',
-        path: '/metrics',
-        description: '6 个核心经营指标口径',
-      },
-      {
-        id: 'tables',
-        label: '数据表',
-        icon: '🗄️',
-        path: '/tables',
-        description: '3 张事实表 Schema',
+        id: 'semantic',
+        label: '语义层',
+        icon: '🧠',
+        path: '/semantic',
+        description: '指标层 6 项 + 维度层 21 字段 + 同义词层 9 项',
       },
       {
         id: 'data-manager',
@@ -148,15 +142,10 @@ export const pageTitleMap: Record<string, { title: string; subtitle: string; let
     subtitle: '高频场景封装的标准报表模板',
     letter: 'B', // 报
   },
-  '/metrics': {
-    title: '指标库',
-    subtitle: '6 个核心经营指标口径与定义',
-    letter: 'Z', // 指
-  },
-  '/tables': {
-    title: '数据表',
-    subtitle: '3 张事实表 Schema 与示例查询',
-    letter: 'S', // 数
+  '/semantic': {
+    title: '语义层管理',
+    subtitle: '指标层（6）+ 维度层（21）+ 同义词层（9），统一管理 NL2SQL 召回口径',
+    letter: 'Y', // 语
   },
   '/data-manager': {
     title: '数据管理',
@@ -167,11 +156,6 @@ export const pageTitleMap: Record<string, { title: string; subtitle: string; let
     title: '历史会话',
     subtitle: '查看历史问答与查询记录',
     letter: 'L', // 历
-  },
-  '/semantic': {
-    title: '语义层',
-    subtitle: '管理 NL2SQL 指标口径 / 维度字段 / 业务同义词',
-    letter: 'Y', // 语
   },
   '/bad-case': {
     title: 'Bad Case 收件箱',
