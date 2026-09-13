@@ -14,12 +14,12 @@ from pydantic import BaseModel, Field
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from ..core.auth import (
+from core.auth import (
     create_access_token,
     get_current_user,
     CurrentUser,
 )
-from ..core.mock_iam import (
+from core.mock_iam import (
     authenticate,
     get_user,
     to_public_dict,
@@ -86,7 +86,7 @@ async def login(req: LoginRequest):
 @router.get("/me", response_model=MeResponse)
 async def me(user: CurrentUser = Depends(get_current_user)):
     """获取当前登录用户信息（前端右上角胶囊用）"""
-    from ..core.permission import get_permission
+    from core.permission import get_permission
 
     perm = get_permission(user.role)
     mock_user = get_user(user.username)
