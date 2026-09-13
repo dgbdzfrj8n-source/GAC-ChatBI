@@ -50,7 +50,7 @@ export const menuConfig: MenuGroup[] = [
     label: '业务资产',
     icon: '📋',
     items: [
-      // P1-P2: 指标库/数据表 已并入「语义层」（指标层 + 维度层），菜单精简
+      // P1-P2 菜单精简：指标库/数据表 已并入「语义层」（指标层 + 维度层 + 同义词层 3 层 Tab）
       {
         id: 'semantic',
         label: '语义层',
@@ -71,13 +71,6 @@ export const menuConfig: MenuGroup[] = [
         icon: '📜',
         path: '/history',
         description: '查看历史问答记录',
-      },
-      {
-        id: 'semantic',
-        label: '语义层',
-        icon: '🧠',
-        path: '/semantic',
-        description: '管理 NL2SQL 指标 / 维度 / 同义词',
       },
       {
         id: 'bad-case',
