@@ -290,14 +290,74 @@ class Nl2SqlEngine:
             print(f"[渲染 insight 异常]: {e}")
             return insight
 
+    # 当前数仓可分析的实体粒度白名单（用于拦截"答非所问"幻觉）
+    SUPPORTED_DIMENSIONS = {
+        "品牌": ["广汽埃安", "广汽传祺", "昊铂", "brand_name"],
+        "车型": ["AION Y", "AION S", "传祺GS8", "传祺M8", "传祺影豹", "昊铂GT", "昊铂HT", "model_name"],
+        "大区": ["华南区", "华东区", "华北区", "华中区", "西南区", "region_name"],
+        "省份": ["province_name"],
+        "月份": ["2025-01", "2025-02", "2025-03", "2025-04"],
+    }
+    
+    # 数仓暂不支持的实体粒度（用户提问命中这些关键词时，直接告知"无法分析"）
+    UNSUPPORTED_ENTITIES = {
+        "门店": {
+            "reply": (
+                "抱歉 😅 当前数仓没有门店（经销商）粒度数据。\n\n"
+                "✅ 当前可分析粒度：\n"
+                "• **品牌**：广汽埃安 / 广汽传祺 / 昊铂\n"
+                "• **车型**：AION Y / AION S / 传祺GS8 / 传祺M8 / 传祺影豹 / 昊铂GT / 昊铂HT\n"
+                "• **大区**：华南 / 华东 / 华北 / 华中 / 西南\n"
+                "• **省份**：根据大区级联展开\n\n"
+                "💡 **建议**：试试这类问题：\n"
+                "• 「华东区广汽埃安3月销量」\n"
+                "• 「各门店大区客流转化率排名」\n"
+                "• 「广东省广汽传祺3月销量」\n\n"
+                "📌 真实门店级分析需对接 DMS（经销商管理系统）数据"
+            ),
+            "keywords": ["门店", "4s店", "4S", "经销商", "dealer", "store"],
+        },
+        "客户个体": {
+            "reply": (
+                "抱歉 😅 当前 ChatBI 是**聚合级经营分析**，不支持到客户个体粒度。\n\n"
+                "✅ 我们能提供：\n"
+                "• 品牌 × 车型 × 大区的销量聚合\n"
+                "• 渠道 × 月份的营销投放聚合\n"
+                "• 大区间的客流转化对比\n\n"
+                "📌 个体级分析受《数据安全法》与集团隐私合规要求限制，需走审批流程"
+            ),
+            "keywords": ["客户", "车主", "潜客", "用户id", "客户名", "姓名"],
+        },
+        "未来预测": {
+            "reply": (
+                "抱歉 😅 当前 ChatBI 是**历史经营分析** BI，不做未来预测。\n\n"
+                "✅ 我们能提供：\n"
+                "• 历史与当期数据复盘\n"
+                "• 当期 vs 预算达成率\n"
+                "• 跨期同比/环比\n\n"
+                "💡 如需预测模型（销量预测 / 客流预测），需对接时间序列模型（Prophet/ARIMA）"
+            ),
+            "keywords": ["预测", "明年", "下个月", "未来", "forecast", "predict"],
+        },
+    }
+    
+    def _detect_unsupported_entity(self, query: str) -> Optional[str]:
+        """检测用户提问中是否包含数仓暂不支持的实体粒度。返回对应的引导文案。"""
+        for entity_name, entity_cfg in self.UNSUPPORTED_ENTITIES.items():
+            for kw in entity_cfg["keywords"]:
+                if kw.lower() in query.lower():
+                    return entity_cfg["reply"]
+        return None
+
     def ask(self, query: str, force_mock: bool = False, current_user: Optional["CurrentUser"] = None) -> Dict[str, Any]:
         """
         核心问数调度主流程：
         1. 闲聊/元问题引导
-        2. 15 条精确模板匹配
-        3. LLM 生成
-        4. AST 检查与执行
-        5. 报错 1 次自愈重试
+        2. 不可达维度拦截（门店/客户个体/未来预测等）
+        3. 15 条精确模板匹配
+        4. LLM 生成
+        5. AST 检查与执行
+        6. 报错 1 次自愈重试
         """
         # 0. 闲聊/元问题兜底（精准引导）
         small_talk_reply = match_small_talk(query)
@@ -316,6 +376,28 @@ class Nl2SqlEngine:
                 "healed": False,
                 "engine": "guide",
                 "is_meta_answer": True,
+            }
+
+        # 0.5 不可达维度拦截（防止 LLM 幻觉"门店"返回品牌交付量）
+        unsupported_reply = self._detect_unsupported_entity(query)
+        if unsupported_reply:
+            return {
+                "query": query,
+                "thought_steps": [
+                    "识别到用户提问涉及数仓暂不支持的实体粒度",
+                    "诚实告知当前可分析维度，避免答非所问",
+                ],
+                "sql": None,
+                "success": True,
+                "data": [],
+                "columns": [],
+                "row_count": 0,
+                "execution_time_ms": 0,
+                "error": None,
+                "summary_insight": unsupported_reply,
+                "healed": False,
+                "engine": "dimension_guard",
+                "is_unsupported_entity": True,
             }
 
         if self._is_meta_question(query):

@@ -18,6 +18,7 @@ interface ChatMessageProps {
   onViewModeChange?: (mode: "chart" | "table") => void;
   isMetaAnswer?: boolean;  // 闲聊/元问题兜底标识
   userQuery?: string;  // P2-7: 用户原始问题，反馈用
+  isUnsupportedEntity?: boolean;  // 不可达维度拦截标识（门店/客户个体/未来预测）
 }
 
 export default function ChatMessage({
@@ -33,6 +34,7 @@ export default function ChatMessage({
   onViewModeChange,
   isMetaAnswer = false,
   userQuery,
+  isUnsupportedEntity = false,
 }: ChatMessageProps) {
   const [thoughtExpanded, setThoughtExpanded] = useState(false);
   // [P2-1 修复] 用 useEffect 同步父组件 viewMode prop，避免父组件切换时不联动
@@ -99,15 +101,32 @@ export default function ChatMessage({
           </div>
         )}
 
-        {/* 经营洞察气泡（非元问题时显示） */}
-        {!isMetaAnswer && (
+        {/* 不可达实体维度拦截（防止 LLM 答非所问）：门店 / 客户个体 / 未来预测 */}
+        {isUnsupportedEntity && !isMetaAnswer && (
+          <div className="bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-300 rounded-2xl rounded-tl-sm px-5 py-4 shadow-sm mb-3">
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                ⚠️
+              </div>
+              <div className="flex-1">
+                <div className="text-xs font-semibold text-amber-700 mb-2">
+                  当前数仓暂不支持该实体维度 · 已为你转人工引导
+                </div>
+                <p className="text-sm leading-relaxed text-gray-800 whitespace-pre-wrap">{content}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 经营洞察气泡（非元问题且非不可达实体时显示） */}
+        {!isMetaAnswer && !isUnsupportedEntity && (
           <div className="bg-white rounded-2xl rounded-tl-sm border border-gray-200 px-4 py-3 shadow-sm mb-3">
             <p className="text-sm leading-relaxed text-gray-800">{content}</p>
           </div>
         )}
 
         {/* 数据可视化（非元问题时显示） */}
-        {!isMetaAnswer && data && data.length > 0 && (
+        {!isMetaAnswer && !isUnsupportedEntity && data && data.length > 0 && (
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             {/* Tab 切换 */}
             {onViewModeChange && (
@@ -165,7 +184,7 @@ export default function ChatMessage({
         )}
 
         {/* P2-7: Bad Case 反馈按钮（仅非闲聊且有数据时显示） */}
-        {!isMetaAnswer && data && data.length > 0 && (
+        {!isMetaAnswer && !isUnsupportedEntity && data && data.length > 0 && (
           <FeedbackButtons
             query={userQuery || ""}
             sql={sql || undefined}

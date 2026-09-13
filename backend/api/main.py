@@ -152,7 +152,8 @@ def chat_query(req: ChatQueryRequest, user: CurrentUser = Depends(get_current_us
         summary_insight=result["summary_insight"] or "查询完成，已生成最新经营视图。",
         healed=result.get("healed", False),
         engine=result.get("engine", "DuckDB"),
-        error=result.get("error")
+        error=result.get("error"),
+        is_unsupported_entity=result.get("is_unsupported_entity", False),
     )
 
 

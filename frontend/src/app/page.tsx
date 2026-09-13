@@ -41,6 +41,7 @@ interface ChartResult {
   engine: string;
   error: string | null;
   is_meta_answer?: boolean;  // 闲聊/元问题兜底标识
+  is_unsupported_entity?: boolean;  // 不可达维度拦截标识（门店/客户个体/未来预测）
 }
 
 // Mock 预置对话数据
@@ -663,6 +664,7 @@ export default function ChatPage() {
                 viewMode={viewMode}
                 onViewModeChange={setViewMode}
                 isMetaAnswer={msg.result?.is_meta_answer}
+                isUnsupportedEntity={msg.result?.is_unsupported_entity}
                 userQuery={prevUserQuery}
               />
             );

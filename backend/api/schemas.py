@@ -27,6 +27,7 @@ class ChatQueryResponse(BaseModel):
     healed: bool = Field(False, description="是否触发并成功完成了 1 次自愈重试")
     engine: str = Field("DuckDB", description="底层数仓计算引擎")
     error: Optional[str] = Field(None, description="错误详情(若有)")
+    is_unsupported_entity: bool = Field(False, description="是否触发了「暂不支持实体维度」诚实提示拦截")
 
 # --- 2. 经营指标库契约 ---
 class MetricItem(BaseModel):
