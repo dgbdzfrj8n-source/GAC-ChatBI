@@ -57,3 +57,10 @@ backend/eval/bad_cases.json
 coverage/
 .coverage
 htmlcov/
+backend/data/gac_bi.duckdb
+
+# ─── 测试用 venv（避免污染生产）──
+backend/.venv-batch*/
+
+# ─── 测试产生的本地 DuckDB 改动 ───
+# 主库文件保留（首次部署需要）；本地测试改动不入版本库

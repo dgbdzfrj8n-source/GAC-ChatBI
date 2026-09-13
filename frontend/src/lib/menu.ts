@@ -85,6 +85,27 @@ export const menuConfig: MenuGroup[] = [
         path: '/semantic',
         description: '管理 NL2SQL 指标 / 维度 / 同义词',
       },
+      {
+        id: 'bad-case',
+        label: 'Bad Case',
+        icon: '🐛',
+        path: '/bad-case',
+        description: '用户反馈收件箱 · 一键闭环关联语义层',
+      },
+    ],
+  },
+  {
+    id: 'governance',
+    label: '运营治理',
+    icon: '🛡️',
+    items: [
+      {
+        id: 'audit',
+        label: '审计日志',
+        icon: '🔍',
+        path: '/audit',
+        description: '谁、什么时候、改了什么（append-only）',
+      },
     ],
   },
   {
@@ -151,6 +172,16 @@ export const pageTitleMap: Record<string, { title: string; subtitle: string; let
     title: '语义层',
     subtitle: '管理 NL2SQL 指标口径 / 维度字段 / 业务同义词',
     letter: 'Y', // 语
+  },
+  '/bad-case': {
+    title: 'Bad Case 收件箱',
+    subtitle: '用户采纳 / 不采纳 / 修正反馈 · 一键闭环关联语义层',
+    letter: 'B', // Bad
+  },
+  '/audit': {
+    title: '操作审计',
+    subtitle: '所有写操作留痕 · append-only · 合规审计',
+    letter: 'A', // 审
   },
   '/settings': {
     title: '设置',

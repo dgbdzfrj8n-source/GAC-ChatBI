@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ChevronDown, ChevronUp, BarChart3, Table2 } from "lucide-react";
 import DataVisualizer from "./DataVisualizer";
+import FeedbackButtons from "./FeedbackButtons";
 
 interface ChatMessageProps {
   role: "user" | "assistant";
@@ -16,12 +17,14 @@ interface ChatMessageProps {
   viewMode?: "chart" | "table";
   onViewModeChange?: (mode: "chart" | "table") => void;
   isMetaAnswer?: boolean;  // 闲聊/元问题兜底标识
+  userQuery?: string;  // P2-7: 用户原始问题，反馈用
 }
 
 export default function ChatMessage({
   role,
   content,
   thoughtSteps,
+  sql,
   chartType,
   echartsOption,
   columns,
@@ -29,6 +32,7 @@ export default function ChatMessage({
   viewMode = "chart",
   onViewModeChange,
   isMetaAnswer = false,
+  userQuery,
 }: ChatMessageProps) {
   const [thoughtExpanded, setThoughtExpanded] = useState(false);
   const [localViewMode, setLocalViewMode] = useState<"chart" | "table">(viewMode);
@@ -154,6 +158,16 @@ export default function ChatMessage({
               />
             </div>
           </div>
+        )}
+
+        {/* P2-7: Bad Case 反馈按钮（仅非闲聊且有数据时显示） */}
+        {!isMetaAnswer && data && data.length > 0 && (
+          <FeedbackButtons
+            query={userQuery || ""}
+            sql={sql || undefined}
+            summary={content}
+            messageId={`msg-${content.slice(0, 16)}`}
+          />
         )}
       </div>
     </div>

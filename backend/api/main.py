@@ -19,8 +19,10 @@ if _BACKEND_DIR not in sys.path:
 
 import json
 import datetime
-from fastapi import FastAPI, HTTPException
+from typing import Any, Dict, List, Optional
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
 from api.schemas import (
     ChatQueryRequest,
     ChatQueryResponse,
@@ -63,6 +65,10 @@ app.add_middleware(
 nl2sql_engine = Nl2SqlEngine()
 chart_recommender = ChartRecommender()
 sop_analyzer = SopAnalyzer()
+
+# P2-4: 初始化审计 + Bad Case 表（DuckDB）
+from services.audit_log import ensure_audit_tables
+ensure_audit_tables()
 
 # Render 平台健康检查端点（默认 GET /，不依赖业务初始化）
 @app.get("/", tags=["基础监控"])
@@ -690,10 +696,175 @@ async def list_roles():
             "/data-manager": ["analyst", "product"],
             "/history":      ["analyst", "product"],
             "/semantic":     ["product"],
+            "/bad-case":     ["analyst", "product"],
+            "/audit":        ["executive", "analyst", "product"],
             "/settings":     ["executive", "analyst", "product"],
             "/help":         ["executive", "analyst", "product", "guest"],
         },
     }
+
+
+# ============================================================
+# P2-4: 操作审计日志 API
+# ============================================================
+from services.audit_log import write_audit, list_audit, audit_stats
+
+
+class AuditWriteRequest(BaseModel):
+    actor: str = Field(..., description="操作者（角色名 / user-id）")
+    action: str = Field(..., description="动作：create / update / delete / query / export / feedback / login")
+    resource: str = Field(..., description="资源：semantic_term / metric / dataset / chat / data_manager / bad_case")
+    resource_id: Optional[str] = Field(None, description="资源 ID")
+    payload: Optional[Dict[str, Any]] = Field(None, description="变更内容（diff）")
+    note: Optional[str] = Field(None, description="备注")
+
+
+@app.post("/api/audit/log", tags=["操作审计"])
+def api_write_audit(req: AuditWriteRequest, request: Request):
+    """写入一条审计日志（前端自动调用）"""
+    ip = request.client.host if request.client else "127.0.0.1"
+    audit_id = write_audit(
+        actor=req.actor,
+        action=req.action,
+        resource=req.resource,
+        resource_id=req.resource_id,
+        payload=req.payload,
+        ip=ip,
+        note=req.note,
+    )
+    return {"success": True, "audit_id": audit_id}
+
+
+@app.get("/api/audit/list", tags=["操作审计"])
+def api_list_audit(
+    actor: Optional[str] = None,
+    action: Optional[str] = None,
+    resource: Optional[str] = None,
+    limit: int = 100,
+):
+    """查询审计日志（按时间倒序）"""
+    items = list_audit(
+        actor=actor, action=action, resource=resource, limit=limit
+    )
+    return {"success": True, "items": items, "count": len(items)}
+
+
+@app.get("/api/audit/stats", tags=["操作审计"])
+def api_audit_stats():
+    """审计日志统计概览"""
+    return {"success": True, **audit_stats()}
+
+
+# ============================================================
+# P2-7: Bad Case 闭环 API（语义层自动学习）
+# ============================================================
+from services.audit_log import (
+    submit_bad_case,
+    list_bad_case,
+    resolve_bad_case,
+    bad_case_stats,
+)
+
+
+class BadCaseSubmitRequest(BaseModel):
+    actor: str = Field(..., description="反馈者")
+    query: str = Field(..., description="原始问题")
+    sql_text: Optional[str] = Field(None, description="生成的 SQL")
+    result_summary: Optional[str] = Field(None, description="结果摘要")
+    feedback_type: str = Field(..., description="positive / negative / correction")
+    feedback_label: Optional[str] = Field(None, description="问题标签：sql错误/口径偏差/数据缺失/其他")
+    correction: Optional[str] = Field(None, description="用户修正口径")
+
+
+@app.post("/api/bad-case/submit", tags=["Bad Case 闭环"])
+def api_submit_bad_case(req: BadCaseSubmitRequest):
+    """提交一条 Bad Case 反馈"""
+    if req.feedback_type not in ("positive", "negative", "correction"):
+        raise HTTPException(400, "feedback_type 必须是 positive / negative / correction")
+
+    # 同步写审计日志
+    write_audit(
+        actor=req.actor,
+        action="feedback",
+        resource="bad_case",
+        payload={
+            "feedback_type": req.feedback_type,
+            "feedback_label": req.feedback_label,
+            "correction": req.correction,
+            "query_preview": req.query[:80],
+        },
+    )
+
+    case_id = submit_bad_case(
+        actor=req.actor,
+        query=req.query,
+        sql_text=req.sql_text,
+        result_summary=req.result_summary,
+        feedback_type=req.feedback_type,
+        feedback_label=req.feedback_label,
+        correction=req.correction,
+    )
+    return {"success": True, "case_id": case_id}
+
+
+@app.get("/api/bad-case/list", tags=["Bad Case 闭环"])
+def api_list_bad_case(
+    feedback_type: Optional[str] = None,
+    resolved: Optional[bool] = None,
+    limit: int = 100,
+):
+    """查询 Bad Case 列表"""
+    items = list_bad_case(
+        feedback_type=feedback_type, resolved=resolved, limit=limit
+    )
+    return {"success": True, "items": items, "count": len(items)}
+
+
+class BadCaseResolveRequest(BaseModel):
+    case_id: str
+    resolved_by: str
+    semantic_term_id: Optional[str] = Field(
+        None, description="关联到语义层 term 后，下次同类问数会更准"
+    )
+
+
+@app.post("/api/bad-case/resolve", tags=["Bad Case 闭环"])
+def api_resolve_bad_case(req: BadCaseResolveRequest):
+    """闭环 Bad Case：标记解决 + 关联语义层"""
+    resolve_bad_case(
+        case_id=req.case_id,
+        resolved_by=req.resolved_by,
+        semantic_term_id=req.semantic_term_id,
+    )
+    write_audit(
+        actor=req.resolved_by,
+        action="update",
+        resource="bad_case",
+        resource_id=req.case_id,
+        payload={"status": "resolved", "semantic_term_id": req.semantic_term_id},
+        note="Bad Case 闭环",
+    )
+    return {"success": True}
+
+
+@app.get("/api/bad-case/stats", tags=["Bad Case 闭环"])
+def api_bad_case_stats():
+    """Bad Case 统计概览"""
+    return {"success": True, **bad_case_stats()}
+
+
+# ============================================================
+# P2-4: 启动期写入"系统初始化"审计
+# ============================================================
+try:
+    write_audit(
+        actor="system",
+        action="create",
+        resource="system",
+        note="服务启动 / 审计表初始化",
+    )
+except Exception:
+    pass
 
 
 if __name__ == "__main__":

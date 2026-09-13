@@ -485,22 +485,33 @@ export default function ChatPage() {
             </div>
           )}
 
-          {messages.map((msg) => (
-            <ChatMessage
-              key={msg.id}
-              role={msg.role}
-              content={msg.content}
-              thoughtSteps={msg.liveThoughts || msg.result?.thought_steps}
-              sql={msg.result?.sql}
-              chartType={msg.result?.chart_type}
-              echartsOption={msg.result?.echarts_option}
-              columns={msg.result?.columns}
-              data={msg.result?.data}
-              viewMode={viewMode}
-              onViewModeChange={setViewMode}
-              isMetaAnswer={msg.result?.is_meta_answer}
-            />
-          ))}
+          {messages.map((msg, idx) => {
+            // 找该 assistant 消息的前一条 user 消息作为 query
+            let prevUserQuery = '';
+            for (let i = idx - 1; i >= 0; i--) {
+              if (messages[i].role === 'user') {
+                prevUserQuery = messages[i].content;
+                break;
+              }
+            }
+            return (
+              <ChatMessage
+                key={msg.id}
+                role={msg.role}
+                content={msg.content}
+                thoughtSteps={msg.liveThoughts || msg.result?.thought_steps}
+                sql={msg.result?.sql}
+                chartType={msg.result?.chart_type}
+                echartsOption={msg.result?.echarts_option}
+                columns={msg.result?.columns}
+                data={msg.result?.data}
+                viewMode={viewMode}
+                onViewModeChange={setViewMode}
+                isMetaAnswer={msg.result?.is_meta_answer}
+                userQuery={prevUserQuery}
+              />
+            );
+          })}
 
           {loading && (
             <div className="flex items-start gap-3 animate-fade-in">
