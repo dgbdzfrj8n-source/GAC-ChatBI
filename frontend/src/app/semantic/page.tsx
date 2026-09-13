@@ -46,7 +46,7 @@ interface Snapshot {
   glossary: Term[];
 }
 
-type TabKey = 'metrics' | 'glossary';
+type TabKey = 'metrics' | 'dimensions' | 'glossary';
 
 export default function SemanticLayerPage() {
   const [snap, setSnap] = useState<Snapshot | null>(null);
@@ -135,7 +135,8 @@ export default function SemanticLayerPage() {
   }
 
   const tabs: { key: TabKey; label: string; icon: string; count: number }[] = [
-    { key: 'metrics', label: '指标 + 维度层', icon: '📐', count: snap.metrics.length + snap.dimensions.length },
+    { key: 'metrics', label: '指标层', icon: '📊', count: snap.metrics.length },
+    { key: 'dimensions', label: '维度层', icon: '🧩', count: snap.dimensions.length },
     { key: 'glossary', label: '同义词层', icon: '📖', count: snap.glossary.length },
   ];
 
@@ -209,17 +210,16 @@ export default function SemanticLayerPage() {
 
       {/* Tab content */}
       {tab === 'metrics' && (
-        <>
-          <MetricsTab
-            metrics={snap.metrics}
-            onEdit={(m) => {
-              setEditing(m);
-              setEditKind('metric');
-            }}
-          />
-          {/* 维度层作为子区域嵌入（原 P1「数据表」菜单内容） */}
-          <DimensionsTab dimensions={snap.dimensions} embedded />
-        </>
+        <MetricsTab
+          metrics={snap.metrics}
+          onEdit={(m) => {
+            setEditing(m);
+            setEditKind('metric');
+          }}
+        />
+      )}
+      {tab === 'dimensions' && (
+        <DimensionsTab dimensions={snap.dimensions} embedded={false} />
       )}
       {tab === 'glossary' && (
         <GlossaryTab
@@ -313,8 +313,8 @@ function DimensionsTab({ dimensions, embedded = false }: { dimensions: Dimension
 
   return (
     <div className="space-y-4">
-      {/* embedded 模式下显示标题（指标 + 维度合并 Tab） */}
-      {embedded && (
+      {/* 独立 Tab 模式下显示完整头部（合并 Tab 模式下不显示，因为上面已有大标题） */}
+      {!embedded && (
         <div className="content-card p-5 border-l-4 border-l-indigo-500">
           <div className="flex items-center gap-2">
             <span className="text-xl">🧩</span>
