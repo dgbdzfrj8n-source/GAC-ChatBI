@@ -265,6 +265,72 @@ def sop_analyze(req: SopAnalysisRequest):
         raise HTTPException(status_code=500, detail=f"SOP 引擎执行异常: {str(e)}")
 
 
+# ─── P0 增强：归因维度模板中心 ─────────────────────────────────────────
+from core.attribution_templates import AttributionTemplateManager
+template_manager = AttributionTemplateManager()
+
+
+@app.get("/api/sop/templates", response_model=AttributionTemplateListResponse, tags=["归因模板"])
+def list_attribution_templates(role: Optional[str] = None, user: Optional[str] = None):
+    """
+    列出全部归因维度模板：
+    - system_presets: 系统预设模板（5 个）
+    - role_default_id: 当前角色绑定的默认模板 ID
+    - role_defaults_map: 所有角色的默认模板映射
+    - user_templates: 当前用户的自定义模板
+    """
+    result = template_manager.list_templates(role=role, user=user)
+    return AttributionTemplateListResponse(**result)
+
+
+@app.post("/api/sop/templates/create", response_model=AttributionTemplateResponse, tags=["归因模板"])
+def create_attribution_template(req: AttributionTemplateCreateRequest):
+    """创建用户自定义归因模板（最多 4 个维度）"""
+    result = template_manager.create_template(
+        name=req.name,
+        dimensions=req.dimensions,
+        description=req.description,
+        owner_role=req.owner_role,
+        owner_user=req.owner_user,
+    )
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "创建失败"))
+    return AttributionTemplateResponse(success=True, template=AttributionTemplateItem(**result["template"]))
+
+
+@app.post("/api/sop/templates/update", response_model=AttributionTemplateResponse, tags=["归因模板"])
+def update_attribution_template(req: AttributionTemplateUpdateRequest):
+    """更新用户自定义归因模板（系统预设不可改）"""
+    result = template_manager.update_template(
+        template_id=req.template_id,
+        name=req.name,
+        dimensions=req.dimensions,
+        description=req.description,
+        owner_user=req.owner_user,
+    )
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "更新失败"))
+    return AttributionTemplateResponse(success=True, template_id=result.get("template_id"))
+
+
+@app.post("/api/sop/templates/delete", response_model=AttributionTemplateResponse, tags=["归因模板"])
+def delete_attribution_template(req: AttributionTemplateDeleteRequest):
+    """删除用户自定义归因模板（系统预设不可删）"""
+    result = template_manager.delete_template(req.template_id, owner_user=req.owner_user)
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "删除失败"))
+    return AttributionTemplateResponse(success=True, deleted_id=result.get("deleted_id"))
+
+
+@app.get("/api/sop/templates/{template_id}", response_model=AttributionTemplateResponse, tags=["归因模板"])
+def get_attribution_template(template_id: str):
+    """获取单个模板详情（含维度列表）"""
+    t = template_manager.get_template(template_id)
+    if not t:
+        raise HTTPException(status_code=404, detail="模板不存在")
+    return AttributionTemplateResponse(success=True, template=AttributionTemplateItem(**t))
+
+
 # ─── Sprint 5.1 SSE 流式问数端点 ──────────────────────────────────────
 @app.post("/api/chat/stream", tags=["智能问数"])
 async def chat_stream(req: ChatQueryRequest, user: CurrentUser = Depends(get_current_user)):

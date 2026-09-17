@@ -53,6 +53,61 @@ class BadCaseFeedbackRequest(BaseModel):
 
 
 # --- 4. SOP 高频归因引擎契约 ---
+# ─── 归因维度模板（P0 增强） ────────────────────────────────────────────
+class AttributionTemplateItem(BaseModel):
+    """单个归因维度模板条目"""
+    id: str
+    name: str
+    description: str = ""
+    scope: str = Field(..., description="system（系统预设） 或 user（用户自定义）")
+    owner_role: Optional[str] = None
+    owner_user: Optional[str] = None
+    dimensions: List[str] = Field(..., description="该模板的归因维度列表")
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
+
+class AttributionTemplateListResponse(BaseModel):
+    """模板列表响应"""
+    system_presets: List[AttributionTemplateItem]
+    role_default_id: Optional[str] = Field(None, description="当前角色绑定的默认模板 ID")
+    role_defaults_map: Dict[str, str] = Field(default_factory=dict, description="所有角色的默认模板映射")
+    user_templates: List[AttributionTemplateItem] = Field(default_factory=list)
+
+
+class AttributionTemplateCreateRequest(BaseModel):
+    """新建用户自定义模板"""
+    name: str = Field(..., min_length=1, max_length=50)
+    description: str = Field("", max_length=200)
+    dimensions: List[str] = Field(..., min_length=1, max_length=4)
+    owner_role: Optional[str] = None
+    owner_user: Optional[str] = None
+
+
+class AttributionTemplateUpdateRequest(BaseModel):
+    """更新模板（仅 user scope）"""
+    template_id: str
+    name: Optional[str] = None
+    description: Optional[str] = None
+    dimensions: Optional[List[str]] = None
+    owner_user: Optional[str] = None
+
+
+class AttributionTemplateDeleteRequest(BaseModel):
+    """删除模板（仅 user scope）"""
+    template_id: str
+    owner_user: Optional[str] = None
+
+
+class AttributionTemplateResponse(BaseModel):
+    """单个模板操作响应"""
+    success: bool
+    template: Optional[AttributionTemplateItem] = None
+    template_id: Optional[str] = None
+    deleted_id: Optional[str] = None
+    error: Optional[str] = None
+
+
 # ─── 归因维度可用枚举（P0：用户可选维度清单） ─────────────────────────
 SUPPORTED_DIMENSIONS: List[str] = [
     "brand_name",     # 品牌维度（广丰 / 广本 / 自主）

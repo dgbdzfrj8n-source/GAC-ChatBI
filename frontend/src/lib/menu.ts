@@ -79,6 +79,13 @@ export const menuConfig: MenuGroup[] = [
         path: '/bad-case',
         description: '用户反馈收件箱 · 一键闭环关联语义层',
       },
+      {
+        id: 'templates',
+        label: '归因模板',
+        icon: '🎯',
+        path: '/templates',
+        description: '归因维度模板中心：预设 + 角色默认 + 自定义',
+      },
     ],
   },
   {
@@ -154,6 +161,11 @@ export const pageTitleMap: Record<string, { title: string; subtitle: string; let
     title: 'Bad Case 收件箱',
     subtitle: '用户采纳 / 不采纳 / 修正反馈 · 一键闭环关联语义层',
     letter: 'B', // Bad
+  },
+  '/templates': {
+    title: '归因维度模板',
+    subtitle: '预设 + 角色默认 + 用户自定义 · 三类模板统一管理',
+    letter: 'G', // 归
   },
   '/audit': {
     title: '操作审计',

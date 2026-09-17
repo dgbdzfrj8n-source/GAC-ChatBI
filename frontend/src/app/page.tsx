@@ -821,6 +821,8 @@ export default function ChatPage() {
           loading={sopLoading}
           onConfirm={executeSopWithDimensions}
           onCancel={() => setShowDimPicker(false)}
+          currentRole={currentUser?.role || "executive"}
+          currentUser={currentUser?.username || "admin"}
         />
       )}
     </div>
