@@ -558,8 +558,8 @@ export default function ChatPage() {
     setShowDimPicker(true);
   };
 
-  // ⭐ P0 新增：用户选完维度后真正执行 SOP 分析
-  const executeSopWithDimensions = async (selectedDimensions: string[]) => {
+  // ⭐ P0 + P1 新增：用户选完维度 + 指标后真正执行 SOP 分析
+  const executeSopWithDimensions = async (selectedDimensions: string[], metricKey: string = "delivered_units") => {
     setShowDimPicker(false);
     const brand = pendingBrand;
     const ym = pendingYm;
@@ -575,6 +575,7 @@ export default function ChatPage() {
           year_month: ym,
           threshold_pct: 95,
           selected_dimensions: selectedDimensions,  // ⭐ P0 新增参数
+          metric_key: metricKey,                     // ⭐ P1 新增参数
         }),
       });
       if (res.ok) {

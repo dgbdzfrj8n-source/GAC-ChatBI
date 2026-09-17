@@ -40,6 +40,82 @@ DIMENSION_LABEL_MAP: Dict[str, str] = {
     "monthly":       "时间",
 }
 
+# ─── P1：归因指标 × 维度 联锁矩阵（业务口径白名单） ───────────────────
+#   - agg_expression：聚合 SQL 片段（注入到 SUM(...)/ROUND(SUM/...) 位置）
+#   - applicable_dimensions：该指标下允许的归因维度（前端置灰 + 后端 400 兜底）
+#   - recommend_score：0~1 推荐强度（前端星星标）
+#   - unit / label：用于报告展示 & 高管摘要
+METRIC_DIMENSION_MATRIX: Dict[str, Dict[str, Any]] = {
+    "delivered_units": {
+        "label": "总交付量",
+        "unit":  "辆",
+        "agg_expression": "SUM(delivered_units)",
+        "applicable_dimensions": ["brand_name", "region_name", "model_name", "energy_type", "price_segment", "monthly"],
+        "recommend_score": {"brand_name":0.3, "region_name":0.7, "model_name":1.0, "energy_type":0.7, "price_segment":0.7, "monthly":0.7},
+    },
+    "gross_revenue": {
+        "label": "总营收",
+        "unit":  "元",
+        "agg_expression": "SUM(gross_revenue)",
+        # 时间维度不适用（按月营收波动大、归因易误导）
+        "applicable_dimensions": ["brand_name", "region_name", "model_name", "energy_type", "price_segment"],
+        "recommend_score": {"brand_name":0.3, "region_name":0.7, "model_name":1.0, "energy_type":0.7, "price_segment":1.0},
+    },
+    "customer_leads": {
+        "label": "进店线索量",
+        "unit":  "条",
+        "agg_expression": "SUM(customer_leads)",
+        # 价格段不适用（线索不按价格段拆分）
+        "applicable_dimensions": ["brand_name", "region_name", "model_name", "energy_type", "monthly"],
+        "recommend_score": {"brand_name":0.3, "region_name":1.0, "model_name":0.7, "energy_type":0.7, "monthly":1.0},
+    },
+    "conversion_rate": {
+        "label": "客流转化率",
+        "unit":  "%",
+        "agg_expression": "ROUND(SUM(delivered_units) * 100.0 / NULLIF(SUM(customer_leads), 0), 2)",
+        # 能源类型不适用（按能源看转化率无业务口径）
+        "applicable_dimensions": ["brand_name", "region_name", "model_name", "price_segment"],
+        "recommend_score": {"brand_name":0.3, "region_name":1.0, "model_name":0.7, "price_segment":0.7},
+    },
+    "avg_price": {
+        "label": "单车成交均价",
+        "unit":  "元/辆",
+        "agg_expression": "ROUND(SUM(gross_revenue) * 1.0 / NULLIF(SUM(delivered_units), 0), 2)",
+        # 时间维度不适用（均价按月波动大、归因易误导）
+        "applicable_dimensions": ["brand_name", "region_name", "model_name", "energy_type", "price_segment"],
+        "recommend_score": {"brand_name":0.3, "region_name":0.7, "model_name":1.0, "energy_type":0.7, "price_segment":1.0},
+    },
+}
+
+DEFAULT_METRIC_KEY = "delivered_units"
+
+
+def _resolve_metric(metric_key: Optional[str]) -> Dict[str, Any]:
+    """
+    校验并解析归因指标键。非法键回退到默认值（绝不抛异常，保持向后兼容）。
+    返回 METRIC_DIMENSION_MATRIX 的拷贝 + 防御性的维度列表拷贝。
+    """
+    safe_key = metric_key if metric_key in METRIC_DIMENSION_MATRIX else DEFAULT_METRIC_KEY
+    cfg = METRIC_DIMENSION_MATRIX[safe_key]
+    return {
+        "key": safe_key,
+        "label": cfg["label"],
+        "unit": cfg["unit"],
+        "agg_expression": cfg["agg_expression"],
+        "applicable_dimensions": list(cfg["applicable_dimensions"]),
+        "recommend_score": dict(cfg["recommend_score"]),
+    }
+
+
+def _filter_applicable_dims(metric_cfg: Dict[str, Any], selected: List[str]) -> List[str]:
+    """剔除所选维度中不适用于当前指标的项（静默剔除，前端可另行提示）"""
+    allowed = set(metric_cfg["applicable_dimensions"])
+    return [d for d in selected if d in allowed and d in DIMENSION_FIELD_MAP]
+
+
+# ─── 兼容别名：保留旧变量名供历史调用方使用 ─────────────────────────
+DIMENSION_LABELS = DIMENSION_LABEL_MAP
+
 
 class SopAnalyzer:
     """
@@ -59,7 +135,8 @@ class SopAnalyzer:
         brand_name: str,
         year_month: str,
         threshold_pct: float = 95.0,
-        selected_dimensions: Optional[List[str]] = None
+        selected_dimensions: Optional[List[str]] = None,
+        metric_key: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         执行完整的四步归因 SOP。
@@ -69,23 +146,29 @@ class SopAnalyzer:
             year_month: 分析月份（格式 YYYY-MM）
             threshold_pct: 达成率预警阈值，默认 95%
             selected_dimensions: 用户选定的归因维度列表（None 则使用默认 3 个）
+            metric_key: 归因指标键（None 则用默认 delivered_units）。
+                        必须位于 METRIC_DIMENSION_MATRIX 白名单内，否则回退默认。
 
         Returns:
             包含四步结果 + 归因贡献明细 的完整归因报告
         """
+        # ⭐ P1：解析归因指标（非法键静默回退）
+        metric_cfg = _resolve_metric(metric_key)
+
         # 默认维度
         if not selected_dimensions:
             selected_dimensions = ["brand_name", "region_name", "model_name"]
 
-        # 维度白名单过滤，防止 SQL 注入
-        valid_dims = [d for d in selected_dimensions if d in DIMENSION_FIELD_MAP]
+        # ⭐ P1：按当前指标过滤掉不适用的维度（兜底校验，防止 SQL 拼错）
+        valid_dims = _filter_applicable_dims(metric_cfg, selected_dimensions)
         if not valid_dims:
-            valid_dims = ["brand_name", "region_name", "model_name"]
+            # 万一用户只选了不适用的维度，回退到指标默认 2 个
+            valid_dims = metric_cfg["applicable_dimensions"][:2]
 
         steps = []
 
         # ─── 第 1 步：大盘对标 ───────────────────────────────────────
-        gap_report = self._step1_brand_gap(brand_name, year_month)
+        gap_report = self._step1_brand_gap(brand_name, year_month, metric_cfg)
         # 注入 brand/year_month 上下文供下游步骤使用
         gap_report["brand"] = brand_name
         gap_report["year_month"] = year_month
@@ -96,13 +179,13 @@ class SopAnalyzer:
         attribution_breakdown: List[Dict[str, Any]] = []
         if gap_report["fulfillment_rate_pct"] < threshold_pct:
             drill_report = self._step2_drill_down_dynamic(
-                brand_name, year_month, valid_dims
+                brand_name, year_month, valid_dims, metric_cfg
             )
             steps.append(drill_report)
 
             # ⭐ P0 新增：算归因贡献明细（指标波动 = 各维度贡献之和 + 占比）
             attribution_breakdown = self._compute_attribution_breakdown(
-                brand_name, year_month, valid_dims
+                brand_name, year_month, valid_dims, metric_cfg
             )
 
         # 第 3 步：跨域归因
@@ -130,7 +213,8 @@ class SopAnalyzer:
             "steps": steps,
             "selected_dimensions": valid_dims,
             "attribution_breakdown": attribution_breakdown,
-            "executive_summary": self._build_executive_summary(gap_report, drill_report, attribution_report, recommendation_report, attribution_breakdown)
+            "metric": metric_cfg,  # ⭐ P1：把指标配置透传给前端展示
+            "executive_summary": self._build_executive_summary(gap_report, drill_report, attribution_report, recommendation_report, attribution_breakdown, metric_cfg)
         }
 
     # ─── ⭐ P0 新增：动态维度下钻（替代原硬编码的 _step2_drill_down） ────────
@@ -138,11 +222,17 @@ class SopAnalyzer:
         self,
         brand_name: str,
         year_month: str,
-        selected_dimensions: List[str]
+        selected_dimensions: List[str],
+        metric_cfg: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         根据用户选定的维度动态构建下钻 SQL，输出每个维度的贡献排名。
+        metric_cfg: 当前归因指标配置（含 agg_expression 片段）
         """
+        # 默认回退到 delivered_units（防御性）
+        if metric_cfg is None:
+            metric_cfg = _resolve_metric(None)
+        agg_expr = metric_cfg["agg_expression"]
         prev_month = self._prev_month(year_month)
         per_dim_results: Dict[str, List[Dict[str, Any]]] = {}
 
@@ -150,17 +240,17 @@ class SopAnalyzer:
             dim_field = DIMENSION_FIELD_MAP[dim_key]
             dim_label = DIMENSION_LABEL_MAP[dim_key]
 
-            # 取本期和上期对比数据
+            # 取本期和上期对比数据（⭐ P1：指标由 agg_expr 决定）
             sql = f"""
             WITH curr AS (
-                SELECT {dim_field} AS dim_value, SUM(delivered_units) AS curr_units
+                SELECT {dim_field} AS dim_value, {agg_expr} AS curr_units
                 FROM fact_sales_daily
                 WHERE brand_name = '{brand_name}'
                   AND STRFTIME('%Y-%m', sale_date) = '{year_month}'
                 GROUP BY {dim_field}
             ),
             prev AS (
-                SELECT {dim_field} AS dim_value, SUM(delivered_units) AS prev_units
+                SELECT {dim_field} AS dim_value, {agg_expr} AS prev_units
                 FROM fact_sales_daily
                 WHERE brand_name = '{brand_name}'
                   AND STRFTIME('%Y-%m', sale_date) = '{prev_month}'
@@ -219,7 +309,9 @@ class SopAnalyzer:
             "worst_model": worst_model,
             "worst_region": worst_region,
             "top_model": top_model,
-            "top_region": top_region
+            "top_region": top_region,
+            # ⭐ P1：把当前指标的单位带出去，方便前端展示
+            "metric_unit": metric_cfg["unit"],
         }
 
     # ─── ⭐ P0 新增：归因贡献明细（核心算法） ─────────────────────────
@@ -227,25 +319,25 @@ class SopAnalyzer:
         self,
         brand_name: str,
         year_month: str,
-        selected_dimensions: List[str]
+        selected_dimensions: List[str],
+        metric_cfg: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         """
         核心算法：对每个用户选定的维度，计算该维度对当期指标波动的贡献量与占比。
 
         公式：
-            维度贡献量 = 该维度当期销量 - 该维度上期销量
-            总波动量 = 品牌当期总销量 - 品牌上期总销量
+            维度贡献量 = 该维度当期指标 - 该维度上期指标
+            总波动量 = 品牌当期总指标 - 品牌上期总指标
             贡献占比 = 维度贡献量 / 总波动量 × 100%
 
-        输出格式符合方案：
-            "广丰本月销量较上月下滑 1,200 辆，其中：
-             ① 华南区域贡献 -800 辆（66.7%，当地新能源渗透率上升）
-             ② 轿车品类贡献 -500 辆（41.7%，雷凌改款换代）
-             ③ SUV新品增量 +100 辆（-8.3%，新车上市对冲）"
+        metric_cfg: 当前归因指标配置（决定聚合口径）
         """
+        if metric_cfg is None:
+            metric_cfg = _resolve_metric(None)
+        agg_expr = metric_cfg["agg_expression"]
         prev_month = self._prev_month(year_month)
 
-        # 1. 先算总波动量（基准）
+        # 1. 先算总波动量（基准）—— ⭐ P1：指标由 agg_expr 决定
         total_sql = f"""
         SELECT
             SUM(CASE WHEN STRFTIME('%Y-%m', sale_date) = '{year_month}' THEN delivered_units ELSE 0 END) AS curr_total,
@@ -263,7 +355,7 @@ class SopAnalyzer:
         if total_delta == 0:
             return []  # 没有波动则不归因
 
-        # 2. 对每个维度算贡献
+        # 2. 对每个维度算贡献（⭐ P1：agg_expr 决定聚合口径）
         breakdown: List[Dict[str, Any]] = []
         for dim_key in selected_dimensions:
             dim_field = DIMENSION_FIELD_MAP[dim_key]
@@ -271,14 +363,14 @@ class SopAnalyzer:
 
             sql = f"""
             WITH curr AS (
-                SELECT {dim_field} AS dim_value, SUM(delivered_units) AS units
+                SELECT {dim_field} AS dim_value, {agg_expr} AS units
                 FROM fact_sales_daily
                 WHERE brand_name = '{brand_name}'
                   AND STRFTIME('%Y-%m', sale_date) = '{year_month}'
                 GROUP BY {dim_field}
             ),
             prev AS (
-                SELECT {dim_field} AS dim_value, SUM(delivered_units) AS units
+                SELECT {dim_field} AS dim_value, {agg_expr} AS units
                 FROM fact_sales_daily
                 WHERE brand_name = '{brand_name}'
                   AND STRFTIME('%Y-%m', sale_date) = '{prev_month}'
@@ -310,53 +402,74 @@ class SopAnalyzer:
                     "dimension_key": dim_key,
                     "dimension_label": dim_label,
                     "member": row.get("dim_value") or "未知",
-                    "contribution": int(contribution),
+                    "contribution": round(float(contribution), 2),
                     "contribution_pct": pct,
-                    "reason": self._infer_reason(dim_key, contribution)
+                    "unit": metric_cfg["unit"],
+                    "reason": self._infer_reason(dim_key, contribution, metric_cfg)
                 })
 
         # 按贡献绝对值排序
         breakdown.sort(key=lambda x: abs(x["contribution"]), reverse=True)
         return breakdown[:6]  # 最多展示 6 条
 
-    def _infer_reason(self, dim_key: str, contribution: int) -> str:
-        """根据维度+方向给出归因推断（简化版，避免 LLM 调用的延迟）"""
+    def _infer_reason(self, dim_key: str, contribution: float, metric_cfg: Dict[str, Any]) -> str:
+        """根据维度+方向+指标给出归因推断（简化版，避免 LLM 调用的延迟）"""
         direction = "下滑" if contribution < 0 else "增长"
+        unit = metric_cfg.get("unit", "辆")
         reason_map = {
-            "brand_name":    f"该品牌{direction} {abs(contribution)} 辆（结构性占比变化）",
-            "region_name":   f"该区域{direction} {abs(contribution)} 辆（终端需求波动）",
-            "model_name":    f"该车型{direction} {abs(contribution)} 辆（产品周期/竞品冲击）",
-            "energy_type":   f"该能源类型{direction} {abs(contribution)} 辆（市场结构迁移）",
-            "price_segment": f"该价格段{direction} {abs(contribution)} 辆（消费偏好变化）",
-            "monthly":       f"该时段{direction} {abs(contribution)} 辆（季节性/节庆效应）",
+            "brand_name":    f"该品牌{direction} {abs(contribution):,.0f} {unit}（结构性占比变化）",
+            "region_name":   f"该区域{direction} {abs(contribution):,.0f} {unit}（终端需求波动）",
+            "model_name":    f"该车型{direction} {abs(contribution):,.0f} {unit}（产品周期/竞品冲击）",
+            "energy_type":   f"该能源类型{direction} {abs(contribution):,.0f} {unit}（市场结构迁移）",
+            "price_segment": f"该价格段{direction} {abs(contribution):,.0f} {unit}（消费偏好变化）",
+            "monthly":       f"该时段{direction} {abs(contribution):,.0f} {unit}（季节性/节庆效应）",
         }
-        return reason_map.get(dim_key, f"变动 {abs(contribution)} 辆")
+        return reason_map.get(dim_key, f"变动 {abs(contribution):,.0f} {unit}")
 
-    def _step1_brand_gap(self, brand_name: str, year_month: str) -> Dict[str, Any]:
+    def _step1_brand_gap(self, brand_name: str, year_month: str, metric_cfg: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
         第 1 步：大盘对标
         计算品牌销量缺口：目标 vs 实际，达成率，缺口量级评级
+
+        ⭐ P1：metric_cfg 决定缺口量单位（辆 / 元 / 条 / %）
+        缺口计算口径：
+          - delivered_units / gross_revenue / customer_leads：actual - target 直接比
+          - conversion_rate / avg_price：与目标值比达成率
         """
-        sql = f"""
-        WITH s_agg AS (
-            SELECT 
-                SUM(delivered_units) AS actual_units
+        if metric_cfg is None:
+            metric_cfg = _resolve_metric(None)
+        agg_expr = metric_cfg["agg_expression"]
+        # ⭐ P1：交付量/营收/线索量 走「当期 vs 预算目标」逻辑；转化率/均价 走「当期值 vs 目标值」
+        use_budget_join = metric_cfg["key"] in ("delivered_units", "gross_revenue", "customer_leads")
+
+        if use_budget_join:
+            sql = f"""
+            WITH s_agg AS (
+                SELECT SUM(delivered_units) AS actual_units
+                FROM fact_sales_daily
+                WHERE brand_name = '{brand_name}'
+                  AND STRFTIME('%Y-%m', sale_date) = '{year_month}'
+            ),
+            b_target AS (
+                SELECT target_units
+                FROM dim_budget_target
+                WHERE brand_name = '{brand_name}' AND year_month = '{year_month}'
+            )
+            SELECT
+                s.actual_units,
+                b.target_units,
+                ROUND(s.actual_units * 100.0 / NULLIF(b.target_units, 0), 2) AS fulfillment_rate_pct,
+                (b.target_units - s.actual_units) AS gap_units
+            FROM s_agg s, b_target b
+            """
+        else:
+            # 转化率 / 均价：当期聚合值即 actual，无预算目标对比
+            sql = f"""
+            SELECT {agg_expr} AS actual_units
             FROM fact_sales_daily
             WHERE brand_name = '{brand_name}'
               AND STRFTIME('%Y-%m', sale_date) = '{year_month}'
-        ),
-        b_target AS (
-            SELECT target_units
-            FROM dim_budget_target
-            WHERE brand_name = '{brand_name}' AND year_month = '{year_month}'
-        )
-        SELECT 
-            s.actual_units,
-            b.target_units,
-            ROUND(s.actual_units * 100.0 / NULLIF(b.target_units, 0), 2) AS fulfillment_rate_pct,
-            (b.target_units - s.actual_units) AS gap_units
-        FROM s_agg s, b_target b
-        """
+            """
         res = self.executor.execute_query(sql)
         if not res["success"] or not res["data"]:
             return {
@@ -367,34 +480,59 @@ class SopAnalyzer:
             }
 
         row = res["data"][0]
-        actual = row["actual_units"] or 0
-        target = row["target_units"] or 0
-        rate = row["fulfillment_rate_pct"] or 0.0
-        gap = row["gap_units"] or 0
+        actual = row.get("actual_units") or 0
+
+        if use_budget_join:
+            target = row.get("target_units") or 0
+            rate = row.get("fulfillment_rate_pct") or 0.0
+            gap = row.get("gap_units") or 0
+        else:
+            # 无预算目标：达成率固定 100，缺口 0，评级「无需对标」
+            target = actual
+            rate = 100.0
+            gap = 0
+            # 直接返回（避免触发 step2 下钻）
+            return {
+                "step": 1,
+                "step_name": "大盘对标",
+                "status": "success",
+                "actual_units": float(actual),
+                "target_units": 0,
+                "fulfillment_rate_pct": rate,
+                "gap_units": 0,
+                "grade": "无需对标",
+                "gap_reason": f"该指标（{metric_cfg['label']}）无预算目标维度，仅做维度下钻",
+                "metric_key": metric_cfg["key"],
+                "metric_label": metric_cfg["label"],
+                "metric_unit": metric_cfg["unit"],
+            }
 
         if rate >= 100:
             grade = "达标"
             reason = f"当期表现优秀，超额交付 {abs(gap):,} 辆"
         elif rate >= 95:
             grade = "基本达标"
-            reason = f"达成率 {rate}%，略低于目标，缺口仅 {gap:,} 辆，属正常波动范围"
+            reason = f"达成率 {rate}%，略低于目标，缺口仅 {gap:,} {metric_cfg['unit']}，属正常波动范围"
         elif rate >= 85:
             grade = "未达标-轻度"
-            reason = f"达成率 {rate}%，缺口 {gap:,} 辆，需要关注"
+            reason = f"达成率 {rate}%，缺口 {gap:,} {metric_cfg['unit']}，需要关注"
         else:
             grade = "未达标-严重"
-            reason = f"达成率仅 {rate}%，缺口高达 {gap:,} 辆，触发深度归因"
+            reason = f"达成率仅 {rate}%，缺口高达 {gap:,} {metric_cfg['unit']}，触发深度归因"
 
         return {
             "step": 1,
             "step_name": "大盘对标",
             "status": "success",
-            "actual_units": actual,
+            "actual_units": float(actual),
             "target_units": target,
             "fulfillment_rate_pct": rate,
             "gap_units": gap,
             "grade": grade,
-            "gap_reason": reason
+            "gap_reason": reason,
+            "metric_key": metric_cfg["key"],
+            "metric_label": metric_cfg["label"],
+            "metric_unit": metric_cfg["unit"],
         }
 
     def _step2_drill_down(self, brand_name: str, year_month: str) -> Optional[Dict[str, Any]]:
@@ -591,7 +729,7 @@ class SopAnalyzer:
                 "type": "短期促销",
                 "priority": "高",
                 "action": f"针对{gap_report['brand']}全系追加限时置换补贴 3,000~5,000 元/台，激活存量客户换购需求",
-                "budget_impact": f"预计追加营销费用 {int(gap_report.get('gap_units', 0) * 3000):,} 元",
+                "budget_impact": f"预计追加营销费用 {int(float(gap_report.get('gap_units', 0) or 0) * 3000):,} 元",
                 # ⭐ P0 新增：归因明细（符合方案要求格式）
                 "attribution_detail": top_attribution
             })
@@ -647,11 +785,16 @@ class SopAnalyzer:
         drill_report: Optional[Dict[str, Any]],
         attribution_report: Optional[Dict[str, Any]],
         recommendation_report: Dict[str, Any],
-        attribution_breakdown: Optional[List[Dict[str, Any]]] = None
+        attribution_breakdown: Optional[List[Dict[str, Any]]] = None,
+        metric_cfg: Optional[Dict[str, Any]] = None,
     ) -> str:
         """生成高管可读的经营归因摘要（⭐ P0 包含归因贡献明细格式）"""
+        if metric_cfg is None:
+            metric_cfg = _resolve_metric(None)
+        metric_label = metric_cfg["label"]
+        unit = metric_cfg["unit"]
         lines = []
-        lines.append(f"【{gap_report['brand']} {gap_report['year_month']} 经营归因摘要】")
+        lines.append(f"【{gap_report['brand']} {gap_report['year_month']} {metric_label}归因摘要】")
         lines.append(f"整体达成率 {gap_report.get('fulfillment_rate_pct', 0)}%，{gap_report.get('gap_reason', '')}")
 
         if drill_report:

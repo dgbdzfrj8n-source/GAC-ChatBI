@@ -63,6 +63,11 @@ class AttributionTemplateItem(BaseModel):
     owner_role: Optional[str] = None
     owner_user: Optional[str] = None
     dimensions: List[str] = Field(..., description="该模板的归因维度列表")
+    # ⭐ P1 新增：模板绑定的归因指标
+    metric_key: str = Field(
+        "delivered_units",
+        description="归因指标键：delivered_units / gross_revenue / customer_leads / conversion_rate / avg_price",
+    )
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
 
@@ -80,6 +85,11 @@ class AttributionTemplateCreateRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=50)
     description: str = Field("", max_length=200)
     dimensions: List[str] = Field(..., min_length=1, max_length=4)
+    # ⭐ P1 新增：模板绑定的归因指标（必填，默认 delivered_units）
+    metric_key: str = Field(
+        "delivered_units",
+        description="归因指标键，必须在白名单内",
+    )
     owner_role: Optional[str] = None
     owner_user: Optional[str] = None
 
@@ -90,6 +100,8 @@ class AttributionTemplateUpdateRequest(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     dimensions: Optional[List[str]] = None
+    # ⭐ P1 新增：可选更新指标
+    metric_key: Optional[str] = None
     owner_user: Optional[str] = None
 
 
@@ -118,6 +130,51 @@ SUPPORTED_DIMENSIONS: List[str] = [
     "monthly",        # 时间维度（周内波动 / 月初月末）
 ]
 
+# ─── 归因指标目录契约（P1） ─────────────────────────────────────────
+SUPPORTED_METRICS: List[Dict[str, Any]] = [
+    {
+        "key": "delivered_units",
+        "label": "总交付量",
+        "unit": "辆",
+        "description": "当期交付的整车数量（核心销量口径）",
+        "applicable_dimensions": ["brand_name", "region_name", "model_name", "energy_type", "price_segment", "monthly"],
+    },
+    {
+        "key": "gross_revenue",
+        "label": "总营收",
+        "unit": "元",
+        "description": "当期开票总营收（财务口径）",
+        "applicable_dimensions": ["brand_name", "region_name", "model_name", "energy_type", "price_segment"],
+    },
+    {
+        "key": "customer_leads",
+        "label": "进店线索量",
+        "unit": "条",
+        "description": "当期进店/留资的意向客户数（获客口径）",
+        "applicable_dimensions": ["brand_name", "region_name", "model_name", "energy_type", "monthly"],
+    },
+    {
+        "key": "conversion_rate",
+        "label": "客流转化率",
+        "unit": "%",
+        "description": "交付量/线索量的比值（终端转化效率）",
+        "applicable_dimensions": ["brand_name", "region_name", "model_name", "price_segment"],
+    },
+    {
+        "key": "avg_price",
+        "label": "单车成交均价",
+        "unit": "元/辆",
+        "description": "营收/交付量的比值（产品结构稳定性）",
+        "applicable_dimensions": ["brand_name", "region_name", "model_name", "energy_type", "price_segment"],
+    },
+]
+
+
+class MetricCatalogResponse(BaseModel):
+    """归因指标目录响应（前端下拉框渲染用）"""
+    metrics: List[Dict[str, Any]] = Field(..., description="5 个推荐归因指标")
+
+
 class SopAnalysisRequest(BaseModel):
     """Sprint 5.3 SOP 归因引擎入参"""
     brand_name: str = Field(..., description="品牌名称（如 广汽埃安/广汽传祺/昊铂）")
@@ -127,6 +184,16 @@ class SopAnalysisRequest(BaseModel):
     selected_dimensions: List[str] = Field(
         default_factory=lambda: ["brand_name", "region_name", "model_name"],
         description="用户选定的归因维度列表，可选：brand_name/model_name/region_name/energy_type/price_segment/monthly"
+    )
+    # ⭐ P1 新增：归因指标（白名单兜底，默认 delivered_units）
+    metric_key: Optional[str] = Field(
+        "delivered_units",
+        description="归因指标键：delivered_units / gross_revenue / customer_leads / conversion_rate / avg_price",
+    )
+    # ⭐ P1 新增：可选模板 ID（传了就从模板取 metric_key + dimensions，前端不用再传两个）
+    template_id: Optional[str] = Field(
+        None,
+        description="归因模板 ID，传了之后自动用模板的指标和维度覆盖请求体",
     )
 
 class SopStepInfo(BaseModel):
@@ -157,6 +224,15 @@ class SopAnalysisResponse(BaseModel):
     supported_dimensions: List[str] = Field(
         default_factory=lambda: SUPPORTED_DIMENSIONS,
         description="系统支持的可选归因维度清单（用于前端渲染选择器）"
+    )
+    # ⭐ P1 新增：本次归因使用的指标元数据（key/label/unit）
+    metric: Optional[Dict[str, Any]] = Field(
+        None,
+        description="本次归因指标元数据：{key, label, unit, applicable_dimensions}",
+    )
+    supported_metrics: List[Dict[str, Any]] = Field(
+        default_factory=lambda: SUPPORTED_METRICS,
+        description="系统支持的归因指标目录（前端下拉框渲染用）",
     )
 
 

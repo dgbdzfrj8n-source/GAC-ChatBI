@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ChevronDown, Loader2, FileText, X } from "lucide-react";
+import { ChevronDown, Loader2, FileText, X, BarChart3 } from "lucide-react";
 
 export interface DimensionOption {
   id: string;
@@ -18,6 +18,23 @@ export const DIMENSION_OPTIONS: DimensionOption[] = [
   { id: "monthly",       label: "时间维度",   desc: "周内波动 / 月初 vs 月末" },
 ];
 
+// ⭐ P1：归因指标选项（前后端 5 个固定值必须保持一致）
+interface MetricOption {
+  key: string;
+  label: string;
+  unit: string;
+  description: string;
+  applicable_dimensions: string[];
+}
+
+const FALLBACK_METRICS: MetricOption[] = [
+  { key: "delivered_units", label: "总交付量", unit: "辆", description: "整车交付数（核心销量口径）", applicable_dimensions: ["brand_name","region_name","model_name","energy_type","price_segment","monthly"] },
+  { key: "gross_revenue",   label: "总营收",   unit: "元", description: "开票总营收（财务口径）",     applicable_dimensions: ["brand_name","region_name","model_name","energy_type","price_segment"] },
+  { key: "customer_leads",  label: "进店线索量", unit: "条", description: "进店/留资意向客户数",      applicable_dimensions: ["brand_name","region_name","model_name","energy_type","monthly"] },
+  { key: "conversion_rate", label: "客流转化率", unit: "%", description: "交付量/线索量（终端效率）", applicable_dimensions: ["brand_name","region_name","model_name","price_segment"] },
+  { key: "avg_price",       label: "单车成交均价", unit: "元/辆", description: "营收/交付量（产品结构）", applicable_dimensions: ["brand_name","region_name","model_name","energy_type","price_segment"] },
+];
+
 interface Template {
   id: string;
   name: string;
@@ -30,10 +47,11 @@ interface DimensionPickerProps {
   defaultSelected?: string[];
   maxSelect?: number;
   loading?: boolean;
-  onConfirm: (selected: string[]) => void;
+  onConfirm: (selected: string[], metricKey: string) => void;  // ⭐ P1：回调带上 metric_key
   onCancel: () => void;
   currentRole?: string;
   currentUser?: string;
+  initialMetricKey?: string;          // ⭐ P1：外部传入初始指标（如模板驱动）
 }
 
 const DIMENSION_LABELS: Record<string, string> = {
@@ -49,6 +67,7 @@ export default function DimensionPicker({
   onCancel,
   currentRole = "executive",
   currentUser = "admin",
+  initialMetricKey = "delivered_units",
 }: DimensionPickerProps) {
   const [selected, setSelected] = useState<string[]>(
     defaultSelected || ["brand_name", "region_name", "model_name"]
@@ -56,17 +75,26 @@ export default function DimensionPicker({
   const [templates, setTemplates] = useState<Template[]>([]);
   const [activeTemplateId, setActiveTemplateId] = useState<string | null>(null);
   const [templateOpen, setTemplateOpen] = useState(false);
+  // ⭐ P1：归因指标（默认 delivered_units，可由外部模板覆盖）
+  const [metricKey, setMetricKey] = useState<string>(initialMetricKey);
+  const [metrics, setMetrics] = useState<MetricOption[]>(FALLBACK_METRICS);
+  const [metricAutoPruned, setMetricAutoPruned] = useState<{ from: string; removed: string[] } | null>(null);
+
+  // ⭐ P1：当前指标对应的可用维度集合
+  const currentMetric = metrics.find((m) => m.key === metricKey) || FALLBACK_METRICS[0];
+  const allowedDimSet = new Set(currentMetric.applicable_dimensions);
 
   // 加载模板列表 + 自动应用角色默认模板
   useEffect(() => {
     const load = async () => {
       try {
         const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-        const res = await fetch(
-          `${API_URL}/api/sop/templates?role=${currentRole}&user=${currentUser}`
-        );
-        if (res.ok) {
-          const data = await res.json();
+        const [tplRes, metricRes] = await Promise.all([
+          fetch(`${API_URL}/api/sop/templates?role=${currentRole}&user=${currentUser}`),
+          fetch(`${API_URL}/api/sop/supported-metrics`).catch(() => null),
+        ]);
+        if (tplRes.ok) {
+          const data = await tplRes.json();
           const all = [...(data.system_presets || []), ...(data.user_templates || [])];
           setTemplates(all);
           // 自动应用角色默认模板
@@ -75,23 +103,51 @@ export default function DimensionPicker({
             if (defaultTpl) {
               setSelected(defaultTpl.dimensions);
               setActiveTemplateId(defaultTpl.id);
+              // ⭐ P1：模板携带 metric_key 时也应用
+              if (defaultTpl.metric_key) {
+                setMetricKey(defaultTpl.metric_key);
+              }
             }
           }
         }
+        if (metricRes && metricRes.ok) {
+          const m = await metricRes.json();
+          if (Array.isArray(m.metrics) && m.metrics.length > 0) {
+            setMetrics(m.metrics);
+          }
+        }
       } catch (e) {
-        console.warn("Failed to load templates:", e);
+        console.warn("Failed to load templates/metrics:", e);
       }
     };
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentRole, currentUser]);
 
+  // ⭐ P1：切换指标时，按新指标的 applicable_dimensions 过滤已选维度
+  const handleMetricChange = (newKey: string) => {
+    const newMetric = metrics.find((m) => m.key === newKey) || FALLBACK_METRICS.find((m) => m.key === newKey);
+    if (!newMetric) return;
+    setMetricKey(newKey);
+    setMetricAutoPruned(null);  // 清除旧提示
+    const newAllowed = new Set(newMetric.applicable_dimensions);
+    const filtered = selected.filter((d) => newAllowed.has(d));
+    if (filtered.length !== selected.length) {
+      const removed = selected.filter((d) => !newAllowed.has(d));
+      setSelected(filtered);
+      setMetricAutoPruned({ from: newMetric.label, removed });
+    }
+  };
+
   const toggle = (id: string) => {
     // 用户手动改了就清掉"激活模板"标记
     setActiveTemplateId(null);
+    setMetricAutoPruned(null);
     if (selected.includes(id)) {
       setSelected(selected.filter((s) => s !== id));
     } else if (selected.length < maxSelect) {
+      // ⭐ P1：不在当前指标适用范围内的维度不允许勾选
+      if (!allowedDimSet.has(id)) return;
       setSelected([...selected, id]);
     }
   };
@@ -126,6 +182,31 @@ export default function DimensionPicker({
           <p className="text-xs text-gray-500 mt-1">
             可使用下方模板快速套用，或手动勾选（最多 {maxSelect} 个）
           </p>
+        </div>
+
+        {/* ⭐ P1：归因指标选择器 */}
+        <div className="px-6 py-3 border-b border-gray-100 bg-blue-50/40">
+          <label className="flex items-center gap-2 text-xs font-medium text-gray-700 mb-1.5">
+            <BarChart3 className="w-3.5 h-3.5 text-blue-500" />
+            归因指标 <span className="text-red-500">*</span>
+          </label>
+          <select
+            value={metricKey}
+            onChange={(e) => handleMetricChange(e.target.value)}
+            disabled={loading}
+            className="w-full px-3 py-1.5 bg-white border border-gray-200 rounded-md text-sm focus:outline-none focus:border-blue-400"
+          >
+            {metrics.map((m) => (
+              <option key={m.key} value={m.key}>
+                {m.label}（{m.unit}）· {m.description}
+              </option>
+            ))}
+          </select>
+          {metricAutoPruned && metricAutoPruned.removed.length > 0 && (
+            <div className="mt-1.5 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+              ⚠ 已自动剔除不适用于「{metricAutoPruned.from}」的维度：{metricAutoPruned.removed.map((d) => DIMENSION_LABELS[d] || d).join("、")}
+            </div>
+          )}
         </div>
 
         {/* 模板下拉 */}
@@ -223,17 +304,21 @@ export default function DimensionPicker({
         <div className="px-6 py-4 space-y-2 overflow-y-auto flex-1">
           {DIMENSION_OPTIONS.map((dim) => {
             const isSelected = selected.includes(dim.id);
-            const disabled = !isSelected && selected.length >= maxSelect;
+            const dimAllowed = allowedDimSet.has(dim.id);
+            const disabled = !dimAllowed || (!isSelected && selected.length >= maxSelect);
             return (
               <label
                 key={dim.id}
-                className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
-                  isSelected
-                    ? "border-purple-400 bg-purple-50 ring-1 ring-purple-200"
-                    : disabled
-                      ? "border-gray-100 bg-gray-50 opacity-50 cursor-not-allowed"
-                      : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                className={`flex items-center gap-3 p-3 rounded-lg border transition-all ${
+                  !dimAllowed
+                    ? "opacity-40 cursor-not-allowed border-gray-100 bg-gray-50"
+                    : isSelected
+                      ? "border-purple-400 bg-purple-50 ring-1 ring-purple-200 cursor-pointer"
+                      : disabled
+                        ? "border-gray-100 bg-gray-50 opacity-50 cursor-not-allowed"
+                        : "border-gray-200 hover:border-gray-300 hover:bg-gray-50 cursor-pointer"
                 }`}
+                title={!dimAllowed ? `「${currentMetric.label}」指标下不适用此维度` : ""}
               >
                 <input
                   type="checkbox"
@@ -246,11 +331,15 @@ export default function DimensionPicker({
                   <div className="font-medium text-sm text-gray-900">{dim.label}</div>
                   <div className="text-xs text-gray-500 mt-0.5">{dim.desc}</div>
                 </div>
-                {isSelected && (
+                {!dimAllowed ? (
+                  <span className="text-[10px] px-2 py-0.5 bg-gray-100 text-gray-400 rounded-full font-medium">
+                    不适用
+                  </span>
+                ) : isSelected ? (
                   <span className="text-xs px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full font-medium">
                     已选
                   </span>
-                )}
+                ) : null}
               </label>
             );
           })}
@@ -266,7 +355,7 @@ export default function DimensionPicker({
             取消
           </button>
           <button
-            onClick={() => onConfirm(selected)}
+            onClick={() => onConfirm(selected, metricKey)}
             disabled={loading || selected.length === 0}
             className="flex-1 py-2 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 font-medium flex items-center justify-center gap-1"
           >

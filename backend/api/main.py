@@ -43,6 +43,9 @@ from api.schemas import (
     AttributionTemplateUpdateRequest,
     AttributionTemplateDeleteRequest,
     AttributionTemplateResponse,
+    # 归因指标目录（P1）
+    MetricCatalogResponse,
+    SUPPORTED_METRICS,
 )
 from core.nl2sql_engine import Nl2SqlEngine
 from core.chart_recommender import ChartRecommender
@@ -220,26 +223,45 @@ def collect_bad_case(req: BadCaseFeedbackRequest):
     return {"status": "success", "message": "Bad Case 反馈已成功记录至运营池", "total_cases": len(cases)}
 
 
+# ─── P0 增强：归因维度模板中心（必须先初始化，sop_analyze 会用到） ─────────
+from core.attribution_templates import AttributionTemplateManager
+template_manager = AttributionTemplateManager()
+
+
 # ─── Sprint 5.3 SOP 高频归因引擎 ──────────────────────────────────────
 @app.post("/api/sop/analyze", response_model=SopAnalysisResponse, tags=["SOP 归因引擎"])
 def sop_analyze(req: SopAnalysisRequest):
     """
-    Sprint 5.3: 高频归因 SOP（销量达成异常 / 预算偏差 / 费用异常波动）
+    Sprint 5.3 + P1: 高频归因 SOP（销量达成异常 / 预算偏差 / 费用异常波动）
 
     执行四步下钻 SOP：
       Step 1 大盘对标 —— 目标 vs 实际，达成率评级
       Step 2 维度下钻 —— 车型 × 大区双维度定位最大缺口贡献者
       Step 3 跨域归因 —— 关联营销投放 / 终端客流 / 折扣力度
       Step 4 策略建议 —— 生成可执行经营策略（带预算影响估算）
+
+    ⭐ P1 新增：
+      - metric_key：归因指标（默认 delivered_units）
+      - template_id：归因模板 ID（传了则从模板自动取 metric_key + dimensions）
     """
     import time
     start = time.time()
     try:
+        # ⭐ P1：若传了 template_id，从模板取指标 + 维度（覆盖请求体）
+        metric_key = req.metric_key
+        selected_dimensions = req.selected_dimensions
+        if req.template_id:
+            tpl = template_manager.get_template(req.template_id)
+            if tpl:
+                metric_key = tpl.get("metric_key", metric_key)
+                selected_dimensions = tpl.get("dimensions", selected_dimensions)
+
         result = sop_analyzer.analyze_fulfillment_gap(
             brand_name=req.brand_name,
             year_month=req.year_month,
             threshold_pct=req.threshold_pct or 95.0,
-            selected_dimensions=req.selected_dimensions  # ⭐ P0: 用户自定义归因维度
+            selected_dimensions=selected_dimensions,
+            metric_key=metric_key,  # ⭐ P1
         )
 
         # 提取第 1 步的评级原因
@@ -265,16 +287,20 @@ def sop_analyze(req: SopAnalysisRequest):
             executive_summary=result.get("executive_summary", ""),
             execution_time_ms=round(elapsed_ms, 1),
             # ⭐ P0 新增
-            selected_dimensions=result.get("selected_dimensions", req.selected_dimensions or []),
-            attribution_breakdown=result.get("attribution_breakdown", [])
+            selected_dimensions=result.get("selected_dimensions", selected_dimensions or []),
+            attribution_breakdown=result.get("attribution_breakdown", []),
+            # ⭐ P1 新增
+            metric=result.get("metric"),
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"SOP 引擎执行异常: {str(e)}")
 
 
-# ─── P0 增强：归因维度模板中心 ─────────────────────────────────────────
-from core.attribution_templates import AttributionTemplateManager
-template_manager = AttributionTemplateManager()
+# ─── P1：归因指标目录端点 ─────────────────────────────────────────
+@app.get("/api/sop/supported-metrics", response_model=MetricCatalogResponse, tags=["SOP 归因引擎"])
+def list_supported_metrics():
+    """返回系统支持的归因指标清单（前端下拉框渲染用）"""
+    return MetricCatalogResponse(metrics=SUPPORTED_METRICS)
 
 
 @app.get("/api/sop/templates", response_model=AttributionTemplateListResponse, tags=["归因模板"])
@@ -292,13 +318,14 @@ def list_attribution_templates(role: Optional[str] = None, user: Optional[str] =
 
 @app.post("/api/sop/templates/create", response_model=AttributionTemplateResponse, tags=["归因模板"])
 def create_attribution_template(req: AttributionTemplateCreateRequest):
-    """创建用户自定义归因模板（最多 4 个维度）"""
+    """创建用户自定义归因模板（最多 4 个维度 + 1 个归因指标）"""
     result = template_manager.create_template(
         name=req.name,
         dimensions=req.dimensions,
         description=req.description,
         owner_role=req.owner_role,
         owner_user=req.owner_user,
+        metric_key=req.metric_key,  # ⭐ P1
     )
     if not result.get("success"):
         raise HTTPException(status_code=400, detail=result.get("error", "创建失败"))
@@ -314,6 +341,7 @@ def update_attribution_template(req: AttributionTemplateUpdateRequest):
         dimensions=req.dimensions,
         description=req.description,
         owner_user=req.owner_user,
+        metric_key=req.metric_key,  # ⭐ P1
     )
     if not result.get("success"):
         raise HTTPException(status_code=400, detail=result.get("error", "更新失败"))
