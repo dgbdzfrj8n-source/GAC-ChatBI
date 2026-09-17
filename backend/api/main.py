@@ -36,6 +36,13 @@ from api.schemas import (
     GlossaryUpdateRequest,
     SemanticPreviewRequest,
     SemanticPreviewResponse,
+    # 归因模板中心（P0）
+    AttributionTemplateItem,
+    AttributionTemplateListResponse,
+    AttributionTemplateCreateRequest,
+    AttributionTemplateUpdateRequest,
+    AttributionTemplateDeleteRequest,
+    AttributionTemplateResponse,
 )
 from core.nl2sql_engine import Nl2SqlEngine
 from core.chart_recommender import ChartRecommender
