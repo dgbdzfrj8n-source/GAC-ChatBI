@@ -1,6 +1,6 @@
 "use client";
 
-import { X, Loader2, AlertTriangle, TrendingDown, Search, Lightbulb } from "lucide-react";
+import { X, Loader2, AlertTriangle, TrendingDown, Search, Lightbulb, BarChart3 } from "lucide-react";
 
 interface SopResultModalProps {
   data: any;
@@ -120,6 +120,92 @@ export default function SopResultModal({ data, loading, onClose }: SopResultModa
                       </div>
                     );
                   })}
+                </div>
+              )}
+
+              {/* 归因贡献明细（P0 新增：用户自定义归因维度后展示） */}
+              {Array.isArray(data.attribution_breakdown) && data.attribution_breakdown.length > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                    <BarChart3 className="w-3.5 h-3.5" />
+                    <span>归因贡献明细</span>
+                    {Array.isArray(data.selected_dimensions) && data.selected_dimensions.length > 0 && (
+                      <span className="ml-auto text-[10px] font-normal text-purple-600 normal-case tracking-normal">
+                        基于维度：{data.selected_dimensions
+                          .map((k: string) => ({
+                            brand_name: "品牌", region_name: "区域", model_name: "车型",
+                            energy_type: "能源", price_segment: "价格段", monthly: "时间"
+                          } as Record<string, string>)[k] || k)
+                          .join(" / ")}
+                      </span>
+                    )}
+                  </div>
+                  <div className="border border-purple-200 rounded-xl overflow-hidden bg-gradient-to-br from-purple-50/30 to-white">
+                    <table className="w-full text-sm">
+                      <thead className="bg-purple-50 text-purple-900 text-xs">
+                        <tr>
+                          <th className="px-4 py-2 text-left font-medium">序号</th>
+                          <th className="px-4 py-2 text-left font-medium">维度·成员</th>
+                          <th className="px-4 py-2 text-right font-medium">贡献量</th>
+                          <th className="px-4 py-2 text-right font-medium">占比</th>
+                          <th className="px-4 py-2 text-left font-medium">归因推断</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100 bg-white">
+                        {data.attribution_breakdown.map((item: any, idx: number) => {
+                          const contrib = item.contribution || 0;
+                          const pct = item.contribution_pct || 0;
+                          const isNegative = contrib < 0;
+                          return (
+                            <tr key={idx} className="hover:bg-purple-50/40 transition-colors">
+                              <td className="px-4 py-2.5 text-gray-500 font-mono text-xs">
+                                {idx === 0 ? "①" : idx === 1 ? "②" : idx === 2 ? "③" : (idx + 1)}
+                              </td>
+                              <td className="px-4 py-2.5">
+                                <span className="inline-flex items-center gap-1.5">
+                                  <span className="text-[10px] px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded">
+                                    {item.dimension_label}
+                                  </span>
+                                  <span className="font-medium text-gray-900">{item.member}</span>
+                                </span>
+                              </td>
+                              <td className={`px-4 py-2.5 text-right font-mono font-semibold ${isNegative ? "text-red-600" : "text-emerald-600"}`}>
+                                {contrib > 0 ? "+" : ""}{contrib.toLocaleString()}
+                                <span className="text-xs text-gray-400 ml-1">辆</span>
+                              </td>
+                              <td className="px-4 py-2.5 text-right">
+                                <div className="flex items-center justify-end gap-2">
+                                  <div className="w-16 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                    <div
+                                      className={`h-full ${isNegative ? "bg-red-400" : "bg-emerald-400"}`}
+                                      style={{ width: `${Math.min(Math.abs(pct), 100)}%` }}
+                                    />
+                                  </div>
+                                  <span className={`text-xs font-mono ${isNegative ? "text-red-600" : "text-emerald-600"}`}>
+                                    {pct > 0 ? "+" : ""}{pct.toFixed(1)}%
+                                  </span>
+                                </div>
+                              </td>
+                              <td className="px-4 py-2.5 text-xs text-gray-600">
+                                {item.reason || "—"}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                      <tfoot className="bg-gray-50 text-xs">
+                        <tr>
+                          <td colSpan={2} className="px-4 py-2 text-gray-500 font-medium">合计</td>
+                          <td className="px-4 py-2 text-right font-mono font-bold text-gray-900">
+                            {data.attribution_breakdown.reduce((s: number, x: any) => s + (x.contribution || 0), 0).toLocaleString()}
+                            <span className="text-gray-500 ml-1">辆</span>
+                          </td>
+                          <td className="px-4 py-2 text-right font-mono font-bold text-gray-900">100%</td>
+                          <td className="px-4 py-2 text-gray-400">— 各维度贡献量之和 = 指标总波动</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
                 </div>
               )}
 

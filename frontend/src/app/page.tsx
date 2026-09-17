@@ -20,6 +20,7 @@ import ChatMessage from "@/components/ChatMessage";
 import SqlDrawer from "@/components/SqlDrawer";
 import BadCaseModal from "@/components/BadCaseModal";
 import SopResultModal from "@/components/SopResultModal";
+import DimensionPicker from "@/components/DimensionPicker";
 import { streamChat } from "@/lib/sse";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://gac-chatbi-api.onrender.com";
@@ -110,6 +111,10 @@ export default function ChatPage() {
   const [showSop, setShowSop] = useState(false);
   const [sopData, setSopData] = useState<any>(null);
   const [sopLoading, setSopLoading] = useState(false);
+  // ⭐ P0: 归因维度选择器状态
+  const [showDimPicker, setShowDimPicker] = useState(false);
+  const [pendingBrand, setPendingBrand] = useState<string>("");
+  const [pendingYm, setPendingYm] = useState<string>("");
   const [copied, setCopied] = useState(false);
   const [currentResult, setCurrentResult] = useState<ChartResult | null>(null);
   const [viewMode, setViewMode] = useState<"chart" | "table">("chart");
@@ -547,6 +552,18 @@ export default function ChatPage() {
       "广汽埃安";
     const ym = (currentResult.data[0]?.year_month as string) || "2025-03";
 
+    // ⭐ P0: 先弹出归因维度选择器（用户自定义归因维度）
+    setPendingBrand(brand);
+    setPendingYm(ym);
+    setShowDimPicker(true);
+  };
+
+  // ⭐ P0 新增：用户选完维度后真正执行 SOP 分析
+  const executeSopWithDimensions = async (selectedDimensions: string[]) => {
+    setShowDimPicker(false);
+    const brand = pendingBrand;
+    const ym = pendingYm;
+
     setSopLoading(true);
     setShowSop(true);
     try {
@@ -557,6 +574,7 @@ export default function ChatPage() {
           brand_name: brand,
           year_month: ym,
           threshold_pct: 95,
+          selected_dimensions: selectedDimensions,  // ⭐ P0 新增参数
         }),
       });
       if (res.ok) {
@@ -569,7 +587,7 @@ export default function ChatPage() {
               type: 'sop_complete',
               severity: 'success',
               title: `🔍 深度归因完成：${brand} ${ym}`,
-              body: '4 步归因报告已生成，详见对话面板',
+              body: `基于 ${selectedDimensions.length} 个维度，已生成归因报告`,
               link: '/',
               audience: ['executive', 'analyst', 'product'],
             },
@@ -795,6 +813,15 @@ export default function ChatPage() {
       {/* SOP 归因弹窗 Sprint 5.3 */}
       {showSop && (
         <SopResultModal data={sopData} loading={sopLoading} onClose={() => setShowSop(false)} />
+      )}
+
+      {/* ⭐ P0 新增：归因维度选择器 */}
+      {showDimPicker && (
+        <DimensionPicker
+          loading={sopLoading}
+          onConfirm={executeSopWithDimensions}
+          onCancel={() => setShowDimPicker(false)}
+        />
       )}
     </div>
   );

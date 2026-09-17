@@ -231,7 +231,8 @@ def sop_analyze(req: SopAnalysisRequest):
         result = sop_analyzer.analyze_fulfillment_gap(
             brand_name=req.brand_name,
             year_month=req.year_month,
-            threshold_pct=req.threshold_pct or 95.0
+            threshold_pct=req.threshold_pct or 95.0,
+            selected_dimensions=req.selected_dimensions  # ⭐ P0: 用户自定义归因维度
         )
 
         # 提取第 1 步的评级原因
@@ -255,7 +256,10 @@ def sop_analyze(req: SopAnalysisRequest):
             steps=steps,
             recommendations=recommendations,
             executive_summary=result.get("executive_summary", ""),
-            execution_time_ms=round(elapsed_ms, 1)
+            execution_time_ms=round(elapsed_ms, 1),
+            # ⭐ P0 新增
+            selected_dimensions=result.get("selected_dimensions", req.selected_dimensions or []),
+            attribution_breakdown=result.get("attribution_breakdown", [])
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"SOP 引擎执行异常: {str(e)}")
@@ -493,7 +497,8 @@ def dashboard_snapshot(latest_month: str = "2025-04"):
                     sop_report = sop_analyzer.analyze_fulfillment_gap(
                         brand_name=r["brand_name"],
                         year_month=latest_month,
-                        threshold_pct=95.0
+                        threshold_pct=95.0,
+                        selected_dimensions=["brand_name", "region_name", "model_name"]  # 报警场景用默认维度
                     )
                     snapshot["alerts"].append({
                         "brand": r["brand_name"],

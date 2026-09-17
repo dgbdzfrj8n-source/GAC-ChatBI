@@ -53,11 +53,26 @@ class BadCaseFeedbackRequest(BaseModel):
 
 
 # --- 4. SOP 高频归因引擎契约 ---
+# ─── 归因维度可用枚举（P0：用户可选维度清单） ─────────────────────────
+SUPPORTED_DIMENSIONS: List[str] = [
+    "brand_name",     # 品牌维度（广丰 / 广本 / 自主）
+    "region_name",    # 区域维度（华南 / 华北 / 华东）
+    "model_name",     # 车型维度（轿车 / SUV / MPV）
+    "energy_type",    # 能源类型（纯电 / 混动 / 燃油）
+    "price_segment",  # 价格段维度（高价车 / 中价车 / 低价车）
+    "monthly",        # 时间维度（周内波动 / 月初月末）
+]
+
 class SopAnalysisRequest(BaseModel):
     """Sprint 5.3 SOP 归因引擎入参"""
     brand_name: str = Field(..., description="品牌名称（如 广汽埃安/广汽传祺/昊铂）")
     year_month: str = Field(..., description="分析月份 YYYY-MM，如 2025-03")
     threshold_pct: Optional[float] = Field(95.0, ge=0, le=200, description="达成率预警阈值，默认 95%")
+    # ⭐ P0 新增：用户自定义归因维度列表
+    selected_dimensions: List[str] = Field(
+        default_factory=lambda: ["brand_name", "region_name", "model_name"],
+        description="用户选定的归因维度列表，可选：brand_name/model_name/region_name/energy_type/price_segment/monthly"
+    )
 
 class SopStepInfo(BaseModel):
     step: int
@@ -78,6 +93,16 @@ class SopAnalysisResponse(BaseModel):
     recommendations: List[Dict[str, Any]] = Field(default_factory=list, description="可执行策略清单")
     executive_summary: str = Field(..., description="高管可读的归因摘要")
     execution_time_ms: float = 0.0
+    # ⭐ P0 新增：归因贡献明细（指标波动 = 各维度贡献之和）
+    selected_dimensions: List[str] = Field(default_factory=list, description="本次归因使用的维度列表")
+    attribution_breakdown: List[Dict[str, Any]] = Field(
+        default_factory=list,
+        description="归因贡献明细：[{\"dimension\": \"华南区域\", \"contribution\": -800, \"contribution_pct\": 66.7, \"reason\": \"当地新能源渗透率上升\"}, ...]"
+    )
+    supported_dimensions: List[str] = Field(
+        default_factory=lambda: SUPPORTED_DIMENSIONS,
+        description="系统支持的可选归因维度清单（用于前端渲染选择器）"
+    )
 
 
 # --- 6. P2-2 语义层（Semantic Layer）契约 ---
