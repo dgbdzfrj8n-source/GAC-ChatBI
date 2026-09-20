@@ -68,6 +68,13 @@ class AttributionTemplateItem(BaseModel):
         "delivered_units",
         description="归因指标键：delivered_units / gross_revenue / customer_leads / conversion_rate / avg_price",
     )
+    # ⭐ P2-SprintA：步骤化 SOP（向后兼容，老模板为空数组）
+    steps: List[Dict[str, Any]] = Field(
+        default_factory=list,
+        description="SOP 步骤列表，每步含 step_id/title/step_type/metric_key/group_by/order",
+    )
+    # ⭐ P2-SprintA：最后修改人
+    updated_by: Optional[str] = None
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
 
