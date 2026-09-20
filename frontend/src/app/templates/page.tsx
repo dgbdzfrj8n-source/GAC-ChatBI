@@ -1,7 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, Edit2, Trash2, X, Loader2, FileText, Lock, User, Star, AlertTriangle, BarChart3 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import {
+  Plus, Edit3, Trash2, X, Loader2, FileText, Lock, User, Star, AlertTriangle,
+  BarChart3, Store, Play, Layers, ChevronRight,
+} from "lucide-react";
+import {
+  listTemplates, listSupportedMetrics, getTemplate,
+  v2CreateTemplate, v2DeleteTemplate, v2RunTemplate,
+  STEP_TYPE_META, StepType,
+} from "@/lib/templates-api";
 
 interface MetricOption {
   key: string;
@@ -11,24 +20,25 @@ interface MetricOption {
   applicable_dimensions: string[];
 }
 
-interface Template {
+interface TemplateSummary {
   id: string;
   name: string;
   description: string;
-  scope: "system" | "user";
+  scope: "system" | "role_default" | "market" | "user";
   owner_role?: string | null;
   owner_user?: string | null;
   dimensions: string[];
-  metric_key?: string;          // ⭐ P1 新增
+  metric_key?: string;
+  steps?: { step_type: StepType; title: string; order: number }[];
   created_at?: string;
   updated_at?: string;
 }
 
 interface TemplateListResponse {
-  system_presets: Template[];
+  system_presets: TemplateSummary[];
   role_default_id: string | null;
   role_defaults_map: Record<string, string>;
-  user_templates: Template[];
+  user_templates: TemplateSummary[];
 }
 
 const DIMENSION_LABELS: Record<string, string> = {
@@ -56,7 +66,6 @@ const ROLE_LABELS: Record<string, string> = {
   visitor:   "访客",
 };
 
-// ⭐ P1：归因指标 label 速查（前端卡片兜底用，后端 catalog 也提供同一份）
 const METRIC_LABEL_FALLBACK: Record<string, string> = {
   delivered_units: "总交付量",
   gross_revenue: "总营收",
@@ -69,27 +78,22 @@ function getMetricLabel(key?: string): string {
 }
 
 export default function TemplatesPage() {
+  const router = useRouter();
   const [data, setData] = useState<TemplateListResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [currentRole, setCurrentRole] = useState<string>("executive");
-  const [currentUser, setCurrentUser] = useState<string>("admin");
-  const [editing, setEditing] = useState<Template | null>(null);
+  const [currentUser, setCurrentUser] = useState<string>("zhangsan");
+  const [metrics, setMetrics] = useState<MetricOption[]>([]);
   const [creating, setCreating] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [metrics, setMetrics] = useState<MetricOption[]>([]);  // ⭐ P1：归因指标目录
+  const [running, setRunning] = useState<string | null>(null);
+  const [runError, setRunError] = useState<string | null>(null);
 
-  // 加载数据
   const loadTemplates = async () => {
     setLoading(true);
     try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-      const res = await fetch(
-        `${API_URL}/api/sop/templates?role=${currentRole}&user=${currentUser}`
-      );
-      if (res.ok) {
-        const json = await res.json();
-        setData(json);
-      }
+      // 后端返回的 created_at 可能为 null，使用宽松类型
+      const j = await listTemplates(currentRole, currentUser);
+      setData(j as unknown as TemplateListResponse);
     } catch (e) {
       console.error("Failed to load templates:", e);
     } finally {
@@ -97,15 +101,10 @@ export default function TemplatesPage() {
     }
   };
 
-  // ⭐ P1：加载归因指标目录
   const loadMetrics = async () => {
     try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-      const res = await fetch(`${API_URL}/api/sop/supported-metrics`);
-      if (res.ok) {
-        const json = await res.json();
-        setMetrics(json.metrics || []);
-      }
+      const m = await listSupportedMetrics();
+      setMetrics(m);
     } catch (e) {
       console.warn("Failed to load metrics:", e);
     }
@@ -117,44 +116,63 @@ export default function TemplatesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentRole, currentUser]);
 
-  // ⭐ P1：迁移检测（老模板未指定 metric_key）
-  const legacyTemplateCount = data?.user_templates.filter(
-    (t) => !t.metric_key || t.metric_key === ""
-  ).length || 0;
-
-  // 删除模板
   const handleDelete = async (id: string) => {
     if (!confirm("确定删除这个模板吗？")) return;
     try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-      const res = await fetch(`${API_URL}/api/sop/templates/delete`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ template_id: id, owner_user: currentUser }),
-      });
-      if (res.ok) {
-        await loadTemplates();
-      } else {
-        const err = await res.json();
-        alert(err.detail || "删除失败");
-      }
+      await v2DeleteTemplate(id);
+      await loadTemplates();
     } catch (e: any) {
       alert(`删除失败: ${e.message}`);
     }
   };
 
+  const handleQuickRun = async (id: string) => {
+    setRunning(id);
+    setRunError(null);
+    try {
+      await v2RunTemplate(id, {});
+      // 跳到报告页
+      router.push(`/templates/run/${id}`);
+    } catch (e: any) {
+      setRunError(e.message);
+    } finally {
+      setRunning(null);
+    }
+  };
+
+  const legacyTemplateCount =
+    data?.user_templates.filter((t) => !t.metric_key || t.metric_key === "").length || 0;
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-purple-50 p-8">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-            <FileText className="w-8 h-8 text-purple-600" />
-            归因维度模板中心
-          </h1>
-          <p className="text-sm text-gray-500 mt-2">
-            预置 + 角色默认 + 用户自定义 · 三类模板统一管理，让 SOP 归因"千人千面"
-          </p>
+        <div className="mb-6 flex items-end justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
+              <FileText className="w-8 h-8 text-purple-600" />
+              归因维度模板中心
+            </h1>
+            <p className="text-sm text-gray-500 mt-2">
+              SOP 步骤化编排 · 系统预设 / 角色默认 / 我的模板 · 三类模板统一管理
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => router.push("/templates/market")}
+              className="flex items-center gap-1.5 px-4 py-1.5 bg-blue-50 text-blue-700 text-sm rounded-lg hover:bg-blue-100 transition-colors border border-blue-200"
+            >
+              <Store className="w-4 h-4" />
+              模板市场
+            </button>
+            <button
+              onClick={() => setCreating(true)}
+              className="flex items-center gap-1.5 px-4 py-1.5 bg-emerald-600 text-white text-sm rounded-lg hover:bg-emerald-700 transition-colors shadow-sm"
+            >
+              <Plus className="w-4 h-4" />
+              新建我的模板
+            </button>
+          </div>
         </div>
 
         {/* 角色切换器 */}
@@ -176,16 +194,10 @@ export default function TemplatesPage() {
             ))}
           </div>
           <div className="flex-1" />
-          <button
-            onClick={() => setCreating(true)}
-            className="flex items-center gap-1.5 px-4 py-1.5 bg-emerald-600 text-white text-sm rounded-lg hover:bg-emerald-700 transition-colors shadow-sm"
-          >
-            <Plus className="w-4 h-4" />
-            新建我的模板
-          </button>
+          <span className="text-xs text-gray-400">用户：{currentUser}</span>
         </div>
 
-        {/* ⭐ P1：迁移提示 banner（老模板未指定指标） */}
+        {/* 老模板迁移提示 */}
         {legacyTemplateCount > 0 && (
           <div className="bg-amber-50 border-l-4 border-amber-400 rounded-r-xl p-4 mb-6 flex items-start gap-3">
             <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
@@ -194,15 +206,22 @@ export default function TemplatesPage() {
                 检测到 {legacyTemplateCount} 个旧模板未指定归因指标
               </div>
               <div className="text-xs text-amber-700 mt-1">
-                系统已默认按"总交付量"运行。建议点击右侧 ✏️ 编辑为每个模板补全归因指标，
-                让归因报告的"贡献量单位"和"策略建议预算"更贴合业务场景。
+                系统已默认按"总交付量"运行。建议点击 ✏️ 进入 V2 编排器补全步骤化 SOP。
               </div>
             </div>
           </div>
         )}
 
+        {/* 运行错误 */}
+        {runError && (
+          <div className="bg-red-50 border-l-4 border-red-400 rounded-r-xl p-4 mb-6 text-sm text-red-800">
+            <strong>运行失败：</strong>{runError}
+            <button onClick={() => setRunError(null)} className="ml-3 text-red-600 hover:underline">×</button>
+          </div>
+        )}
+
         {/* 角色默认提示 */}
-        {data && (
+        {data && data.role_default_id && (
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6 flex items-center gap-3">
             <Star className="w-5 h-5 text-amber-600 flex-shrink-0" />
             <div className="text-sm">
@@ -210,9 +229,9 @@ export default function TemplatesPage() {
                 {ROLE_LABELS[currentRole]}角色默认模板：
               </span>
               {data.system_presets.find((t) => t.id === data.role_default_id)?.name ||
-                "（未绑定）"}
+                data.role_default_id}
               <span className="ml-3 text-xs text-amber-700">
-                点击 SOP「深度归因」时，会自动预选该模板的维度
+                点击 ▶ 运行可发起完整 SOP 归因
               </span>
             </div>
           </div>
@@ -237,7 +256,9 @@ export default function TemplatesPage() {
                     key={t.id}
                     template={t}
                     isDefault={t.id === data.role_default_id}
-                    onEdit={() => setEditing(t)}
+                    isRunning={running === t.id}
+                    onRun={() => handleQuickRun(t.id)}
+                    onEdit={() => router.push(`/templates/editor/${t.id}`)}
                     onDelete={() => handleDelete(t.id)}
                   />
                 ))}
@@ -253,14 +274,23 @@ export default function TemplatesPage() {
               {data?.user_templates.length === 0 ? (
                 <div className="bg-white border-2 border-dashed border-gray-200 rounded-xl p-10 text-center">
                   <p className="text-sm text-gray-400 mb-3">
-                    还没有自定义模板。点击右上角"新建我的模板"开始
+                    还没有自定义模板。从模板市场克隆一个，或点击右上角"新建我的模板"开始
                   </p>
-                  <button
-                    onClick={() => setCreating(true)}
-                    className="text-sm text-purple-600 hover:underline"
-                  >
-                    + 立即创建
-                  </button>
+                  <div className="flex gap-2 justify-center">
+                    <button
+                      onClick={() => router.push("/templates/market")}
+                      className="text-sm text-blue-600 hover:underline"
+                    >
+                      去模板市场逛逛 →
+                    </button>
+                    <span className="text-gray-300">|</span>
+                    <button
+                      onClick={() => setCreating(true)}
+                      className="text-sm text-purple-600 hover:underline"
+                    >
+                      + 立即创建
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -269,7 +299,9 @@ export default function TemplatesPage() {
                       key={t.id}
                       template={t}
                       isDefault={false}
-                      onEdit={() => setEditing(t)}
+                      isRunning={running === t.id}
+                      onRun={() => handleQuickRun(t.id)}
+                      onEdit={() => router.push(`/templates/editor/${t.id}`)}
                       onDelete={() => handleDelete(t.id)}
                     />
                   ))}
@@ -279,25 +311,16 @@ export default function TemplatesPage() {
           </>
         )}
 
-        {/* 编辑/创建弹窗 */}
-        {(editing || creating) && (
-          <TemplateEditor
-            template={editing || undefined}
-            onClose={() => {
-              setEditing(null);
-              setCreating(false);
-            }}
-            onSaved={async () => {
-              setSaving(false);
-              setEditing(null);
+        {/* 新建模板弹窗（V2 简化版：先创空白模板，再跳编辑器） */}
+        {creating && (
+          <NewTemplateModal
+            metrics={metrics}
+            onClose={() => setCreating(false)}
+            onSaved={async (templateId) => {
               setCreating(false);
               await loadTemplates();
+              router.push(`/templates/editor/${templateId}`);
             }}
-            ownerUser={currentUser}
-            ownerRole={currentRole}
-            saving={saving}
-            setSaving={setSaving}
-            metrics={metrics}        // ⭐ P1
           />
         )}
       </div>
@@ -305,21 +328,21 @@ export default function TemplatesPage() {
   );
 }
 
-// ────────────────────────────────────────────────────────────────────
+// ────────────────────────────────────────────────────────────
 // 模板卡片
-// ────────────────────────────────────────────────────────────────────
+// ────────────────────────────────────────────────────────────
 function TemplateCard({
-  template,
-  isDefault,
-  onEdit,
-  onDelete,
+  template, isDefault, isRunning, onRun, onEdit, onDelete,
 }: {
-  template: Template;
+  template: TemplateSummary;
   isDefault: boolean;
+  isRunning: boolean;
+  onRun: () => void;
   onEdit: () => void;
   onDelete: () => void;
 }) {
   const isSystem = template.scope === "system";
+  const stepCount = template.steps?.length || 0;
   return (
     <div
       className={`bg-white rounded-xl border p-5 hover:shadow-md transition-all ${
@@ -332,19 +355,19 @@ function TemplateCard({
           {isDefault && (
             <span className="flex items-center gap-0.5 px-2 py-0.5 bg-amber-100 text-amber-700 text-[10px] rounded-full font-medium">
               <Star className="w-3 h-3" />
-              当前角色默认
+              角色默认
             </span>
           )}
         </div>
-        {!isSystem && (
-          <div className="flex gap-1 flex-shrink-0">
-            <button
-              onClick={onEdit}
-              className="p-1.5 hover:bg-gray-100 rounded transition-colors"
-              title="编辑"
-            >
-              <Edit2 className="w-3.5 h-3.5 text-gray-500" />
-            </button>
+        <div className="flex gap-1 flex-shrink-0">
+          <button
+            onClick={onEdit}
+            className="p-1.5 hover:bg-gray-100 rounded transition-colors"
+            title="V2 编排器"
+          >
+            <Edit3 className="w-3.5 h-3.5 text-gray-500" />
+          </button>
+          {!isSystem && (
             <button
               onClick={onDelete}
               className="p-1.5 hover:bg-red-50 rounded transition-colors"
@@ -352,22 +375,33 @@ function TemplateCard({
             >
               <Trash2 className="w-3.5 h-3.5 text-red-500" />
             </button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
       <p className="text-xs text-gray-500 mb-3 line-clamp-2 min-h-[2.5rem]">
         {template.description || "（无描述）"}
       </p>
-      {/* ⭐ P1：归因指标标签 */}
+
+      {/* ⭐ V2 标识：SOP 步骤数 */}
+      {stepCount > 0 && (
+        <div className="mb-2 flex items-center gap-1.5 px-2 py-1 bg-purple-50 rounded text-xs text-purple-700">
+          <Layers className="w-3 h-3" />
+          <span className="font-medium">{stepCount} 步 SOP</span>
+          <ChevronRight className="w-3 h-3 ml-auto" />
+        </div>
+      )}
+
+      {/* 归因指标标签 */}
       <div className="mb-2 flex items-center gap-1.5">
         <BarChart3 className="w-3 h-3 text-blue-500 flex-shrink-0" />
         <span className="text-xs font-medium text-blue-700">
           {getMetricLabel(template.metric_key)}
         </span>
-        <span className="text-[10px] text-gray-400">· 归因指标</span>
       </div>
+
+      {/* 维度标签 */}
       <div className="flex flex-wrap gap-1">
-        {template.dimensions.map((d) => (
+        {template.dimensions.slice(0, 6).map((d) => (
           <span
             key={d}
             className="inline-block px-2 py-0.5 bg-purple-50 text-purple-700 text-xs rounded"
@@ -376,63 +410,50 @@ function TemplateCard({
           </span>
         ))}
       </div>
-      <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between text-[10px] text-gray-400">
-        <span>{isSystem ? "🔒 系统预设" : "✏️ 用户自定义"}</span>
-        {template.updated_at && <span>{template.updated_at}</span>}
+
+      {/* 操作区 */}
+      <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between">
+        <button
+          onClick={onRun}
+          disabled={isRunning}
+          className="flex items-center gap-1 px-3 py-1 bg-emerald-600 text-white text-xs rounded hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+        >
+          {isRunning ? (
+            <Loader2 className="w-3 h-3 animate-spin" />
+          ) : (
+            <Play className="w-3 h-3" />
+          )}
+          {isRunning ? "执行中..." : "运行 SOP"}
+        </button>
+        <span className="text-[10px] text-gray-400">
+          {isSystem ? "🔒 系统预设" : "✏️ 用户自定义"}
+        </span>
       </div>
     </div>
   );
 }
 
-// ────────────────────────────────────────────────────────────────────
-// 模板编辑器
-// ────────────────────────────────────────────────────────────────────
-function TemplateEditor({
-  template,
-  onClose,
-  onSaved,
-  ownerUser,
-  ownerRole,
-  saving,
-  setSaving,
-  metrics,
+// ────────────────────────────────────────────────────────────
+// 新建模板弹窗（先用默认 step 创建一个空白模板，再跳编辑器补全）
+// ────────────────────────────────────────────────────────────
+function NewTemplateModal({
+  metrics, onClose, onSaved,
 }: {
-  template?: Template;
+  metrics: MetricOption[];
   onClose: () => void;
-  onSaved: () => Promise<void>;
-  ownerUser: string;
-  ownerRole: string;
-  saving: boolean;
-  setSaving: (b: boolean) => void;
-  metrics: MetricOption[];          // ⭐ P1：归因指标目录
+  onSaved: (templateId: string) => Promise<void>;
 }) {
-  const isEdit = !!template;
-  const [name, setName] = useState(template?.name || "");
-  const [description, setDescription] = useState(template?.description || "");
-  const [dimensions, setDimensions] = useState<string[]>(template?.dimensions || []);
-  // ⭐ P1：归因指标（编辑老模板时回退到默认 delivered_units）
-  const [metricKey, setMetricKey] = useState<string>(
-    template?.metric_key || "delivered_units"
-  );
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [metricKey, setMetricKey] = useState("delivered_units");
+  const [dimensions, setDimensions] = useState<string[]>(["brand_name", "region_name"]);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // ⭐ P1：根据当前指标过滤不适用的维度（前端置灰）
   const currentMetricCfg = metrics.find((m) => m.key === metricKey);
-  const allowedDims = new Set(currentMetricCfg?.applicable_dimensions || ALL_DIMENSIONS.map(d => d.key));
-
-  // 切换指标时，如果已选维度里有不适用的 → 自动剔除并提示
-  const handleMetricChange = (newKey: string) => {
-    setMetricKey(newKey);
-    const newCfg = metrics.find((m) => m.key === newKey);
-    const newAllowed = new Set(newCfg?.applicable_dimensions || ALL_DIMENSIONS.map(d => d.key));
-    const filteredDims = dimensions.filter((d) => newAllowed.has(d));
-    if (filteredDims.length !== dimensions.length) {
-      const removed = dimensions.filter((d) => !newAllowed.has(d));
-      setDimensions(filteredDims);
-      alert(
-        `已自动剔除不适用于「${newCfg?.label || newKey}」的维度：\n${removed.map((d) => "· " + (DIMENSION_LABELS[d] || d)).join("\n")}`
-      );
-    }
-  };
+  const allowedDims = new Set(
+    currentMetricCfg?.applicable_dimensions || ALL_DIMENSIONS.map((d) => d.key)
+  );
 
   const toggle = (key: string) => {
     if (dimensions.includes(key)) {
@@ -442,53 +463,43 @@ function TemplateEditor({
     }
   };
 
+  const handleMetricChange = (newKey: string) => {
+    setMetricKey(newKey);
+    const cfg = metrics.find((m) => m.key === newKey);
+    const allowed = new Set(
+      cfg?.applicable_dimensions || ALL_DIMENSIONS.map((d) => d.key)
+    );
+    setDimensions(dimensions.filter((d) => allowed.has(d)));
+  };
+
   const handleSave = async () => {
     if (!name.trim()) {
-      alert("请输入模板名称");
-      return;
-    }
-    if (!metricKey) {
-      alert("请选择归因指标");
-      return;
-    }
-    if (dimensions.length === 0) {
-      alert("请至少选 1 个维度");
+      setError("请输入模板名称");
       return;
     }
     setSaving(true);
+    setError(null);
     try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-      const url = isEdit ? "/api/sop/templates/update" : "/api/sop/templates/create";
-      const body = isEdit
-        ? {
-            template_id: template!.id,
-            name,
-            description,
-            dimensions,
-            metric_key: metricKey,    // ⭐ P1
-            owner_user: ownerUser,
-          }
-        : {
-            name,
-            description,
-            dimensions,
-            metric_key: metricKey,    // ⭐ P1
-            owner_role: ownerRole,
-            owner_user: ownerUser,
-          };
-      const res = await fetch(`${API_URL}${url}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+      // 构造一个最简单的 1 步 SOP（horizontal_compare）
+      const result = await v2CreateTemplate({
+        name,
+        description,
+        steps: [
+          {
+            step_id: `step_init`,
+            title: "横向分析",
+            step_type: "horizontal_compare",
+            metric_key: metricKey,
+            group_by: dimensions,
+            compare_mode: "plan",
+            order: 1,
+          },
+        ],
+        change_reason: "init via modal",
       });
-      if (res.ok) {
-        await onSaved();
-      } else {
-        const err = await res.json();
-        alert(err.detail || "保存失败");
-      }
+      await onSaved(result.template.id);
     } catch (e: any) {
-      alert(`保存失败: ${e.message}`);
+      setError(e.message);
     } finally {
       setSaving(false);
     }
@@ -498,15 +509,19 @@ function TemplateEditor({
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-6">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-gradient-to-r from-purple-50 to-indigo-50">
-          <h3 className="text-base font-semibold text-gray-900">
-            {isEdit ? "编辑模板" : "新建模板"}
-          </h3>
+          <h3 className="text-base font-semibold text-gray-900">新建模板（V2 步骤化）</h3>
           <button onClick={onClose} className="p-1 hover:bg-white/60 rounded">
             <X className="w-4 h-4 text-gray-500" />
           </button>
         </div>
 
         <div className="p-6 space-y-4">
+          {error && (
+            <div className="bg-red-50 border-l-4 border-red-400 p-3 text-sm text-red-700 rounded">
+              {error}
+            </div>
+          )}
+
           <div>
             <label className="text-xs font-medium text-gray-700 mb-1 block">
               模板名称 <span className="text-red-500">*</span>
@@ -517,14 +532,12 @@ function TemplateEditor({
               onChange={(e) => setName(e.target.value)}
               maxLength={50}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-purple-500"
-              placeholder="例如：高管周报视图"
+              placeholder="例如：我的新能源专项复盘"
             />
           </div>
 
           <div>
-            <label className="text-xs font-medium text-gray-700 mb-1 block">
-              描述（可选）
-            </label>
+            <label className="text-xs font-medium text-gray-700 mb-1 block">描述（可选）</label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
@@ -535,7 +548,6 @@ function TemplateEditor({
             />
           </div>
 
-          {/* ⭐ P1：归因指标下拉 */}
           <div>
             <label className="text-xs font-medium text-gray-700 mb-1 flex items-center gap-1">
               <BarChart3 className="w-3.5 h-3.5 text-blue-500" />
@@ -551,21 +563,16 @@ function TemplateEditor({
               ) : (
                 metrics.map((m) => (
                   <option key={m.key} value={m.key}>
-                    {m.label}（{m.unit}） · {m.description}
+                    {m.label}（{m.unit}）
                   </option>
                 ))
               )}
             </select>
-            {currentMetricCfg && (
-              <div className="text-[10px] text-gray-500 mt-1">
-                💡 该指标下适用的维度：{currentMetricCfg.applicable_dimensions.map((d) => DIMENSION_LABELS[d] || d).join("、")}
-              </div>
-            )}
           </div>
 
           <div>
             <label className="text-xs font-medium text-gray-700 mb-2 block">
-              选择归因维度 <span className="text-gray-400">（最多 4 个，已选 {dimensions.length}/4）</span>
+              初始维度 <span className="text-gray-400">（最多 4 个，已选 {dimensions.length}/4）</span>
             </label>
             <div className="space-y-1.5">
               {ALL_DIMENSIONS.map((dim) => {
@@ -576,7 +583,7 @@ function TemplateEditor({
                 return (
                   <label
                     key={dim.key}
-                    className={`flex items-center gap-3 p-2.5 rounded-lg border transition-all ${
+                    className={`flex items-center gap-3 p-2 rounded-lg border transition-all ${
                       !dimAllowed
                         ? "opacity-40 cursor-not-allowed border-gray-100 bg-gray-50"
                         : checked
@@ -585,7 +592,6 @@ function TemplateEditor({
                             ? "opacity-50 cursor-not-allowed border-gray-100"
                             : "border-gray-200 hover:bg-gray-50 cursor-pointer"
                     }`}
-                    title={!dimAllowed ? `「${currentMetricCfg?.label || metricKey}」指标下不适用此维度` : ""}
                   >
                     <input
                       type="checkbox"
@@ -597,7 +603,6 @@ function TemplateEditor({
                     <span className="text-sm font-medium text-gray-900">
                       {DIMENSION_LABELS[dim.key]}
                     </span>
-                    <span className="text-xs text-gray-400">· {dim.desc}</span>
                     {!dimAllowed && (
                       <span className="ml-auto text-[10px] text-gray-400">不适用</span>
                     )}
@@ -605,6 +610,9 @@ function TemplateEditor({
                 );
               })}
             </div>
+            <p className="text-[10px] text-gray-400 mt-2">
+              💡 创建后可进入 V2 编排器修改步骤（添加下钻/横向对比/策略建议等）
+            </p>
           </div>
         </div>
 
@@ -618,11 +626,11 @@ function TemplateEditor({
           </button>
           <button
             onClick={handleSave}
-            disabled={saving || !name.trim() || !metricKey || dimensions.length === 0}
+            disabled={saving || !name.trim() || dimensions.length === 0}
             className="flex-1 py-2 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 flex items-center justify-center gap-1"
           >
             {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-            {saving ? "保存中..." : isEdit ? "保存修改" : "创建模板"}
+            {saving ? "创建中..." : "创建并进入编排器"}
           </button>
         </div>
       </div>
