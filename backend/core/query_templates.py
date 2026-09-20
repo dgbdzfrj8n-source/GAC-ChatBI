@@ -184,9 +184,9 @@ ORDER BY 单车均价_元 DESC
     },
     {
         "id": "Q08",
-        "label": "营销费用占比最高的渠道",
+        "label": "投放金额最高的渠道",
         "domain": "经营财务",
-        "keywords": ["营销费用", "占比"],
+        "keywords": ["投放金额", "最高", "渠道"],
         "chart_hint": "pie",
         "sql": """
 SELECT
@@ -197,28 +197,28 @@ FROM fact_marketing_expenses
 GROUP BY channel_name
 ORDER BY 总支出 DESC
 """,
-        "insight": "{top_channel} 渠道占总营销支出 {top_pct}%，是投放最重的渠道。",
+        "insight": "{top_channel} 渠道投放金额占总投放 {top_pct}%，是投放最重的渠道（占比为渠道占总营销支出比例，非毛利率口径）。",
     },
     {
         "id": "Q09",
-        "label": "毛利率最高的是哪个车型",
+        "label": "单车毛利贡献最高的车型",
         "domain": "经营财务",
-        "keywords": ["毛利率", "车型"],
+        "keywords": ["毛利", "车型"],
         "chart_hint": "bar",
         "sql": """
 SELECT
     model_name AS 车型,
     brand_name AS 品牌,
     ROUND(AVG(gross_revenue / NULLIF(delivered_units, 0)), 0) AS 平均单车营收_元,
-    ROUND(AVG(gross_revenue / NULLIF(delivered_units, 0)) * (1 - AVG(discount_rate)), 0) AS 估算毛利_元,
-    ROUND(AVG(1 - discount_rate) * 100, 2) AS 平均折扣后毛利率_pct
+    ROUND(AVG(gross_revenue / NULLIF(delivered_units, 0)) * (1 - AVG(discount_rate)), 0) AS 单车毛利_元,
+    ROUND(AVG(1 - discount_rate) * 100, 2) AS 平均折扣率_pct
 FROM fact_sales_daily
 WHERE delivered_units > 0
 GROUP BY model_name, brand_name
-ORDER BY 估算毛利_元 DESC
+ORDER BY 单车毛利_元 DESC
 LIMIT 5
 """,
-        "insight": "毛利贡献 Top1 车型为 {model}，估算单车毛利约 {profit} 元。",
+        "insight": "单车毛利贡献 Top1 车型为 {model}，估算单车毛利约 {profit} 元（说明：当前数仓无成本字段，毛利由「单车营收 × (1-折扣率)」估算，仅作经营参考）。",
     },
 
     # ===== 市场营销（3 条）=====
@@ -302,13 +302,13 @@ ORDER BY ROI_倍数 DESC NULLS LAST
     # ===== 渠道经营（3 条）=====
     {
         "id": "Q13",
-        "label": "各门店客流成交转化率排名",
+        "label": "各大区客流成交转化率排名",
         "domain": "渠道经营",
-        "keywords": ["门店", "客流", "成交转化"],
+        "keywords": ["大区", "客流", "成交转化"],
         "chart_hint": "bar",
         "sql": """
 SELECT
-    region_name AS 门店大区,
+    region_name AS 大区,
     SUM(customer_leads) AS 总客流,
     SUM(test_drives) AS 总试驾,
     SUM(delivered_units) AS 总成交,
@@ -317,18 +317,17 @@ FROM fact_sales_daily
 GROUP BY region_name
 ORDER BY 客流成交转化率_pct DESC
 """,
-        "insight": "{top_region} 大区客流转化率 {top_rate}% 最高，建议提炼经验推广至全国。",
+        "insight": "{top_region} 大区客流转化率 {top_rate}% 最高，建议提炼经验推广至全国（说明：当前数仓维度止于大区，未下钻到门店/经销商粒度）。",
     },
     {
         "id": "Q14",
-        "label": "客流漏斗：进店→留资→试驾→成交",
+        "label": "客流漏斗：进店→试驾→成交",
         "domain": "渠道经营",
         "keywords": ["漏斗", "客流转"],
         "chart_hint": "funnel",
         "sql": """
 SELECT
     SUM(customer_leads) AS 进店客流,
-    SUM(customer_leads) AS 留资客户,
     SUM(test_drives) AS 试驾次数,
     SUM(delivered_units) AS 成交台数,
     ROUND(SUM(test_drives) * 100.0 / NULLIF(SUM(customer_leads), 0), 2) AS 进店→试驾_pct,
@@ -340,13 +339,13 @@ FROM fact_sales_daily
     },
     {
         "id": "Q15",
-        "label": "转化率低于10%的门店",
+        "label": "转化率低于10%的大区",
         "domain": "渠道经营",
-        "keywords": ["转化率低", "门店"],
+        "keywords": ["转化率低", "大区"],
         "chart_hint": "table",
         "sql": """
 SELECT
-    region_name AS 门店大区,
+    region_name AS 大区,
     province_name AS 省份,
     SUM(customer_leads) AS 客流,
     SUM(delivered_units) AS 成交,
@@ -357,7 +356,7 @@ HAVING SUM(customer_leads) > 100
 ORDER BY 转化率_pct ASC
 LIMIT 8
 """,
-        "insight": "有 {count} 个省份/大区转化率低于 10%，最低仅 {lowest}%，建议排查产品陈列与销售话术。",
+        "insight": "有 {count} 个大区/省份转化率低于 10%，最低仅 {lowest}%，建议排查该区域产品陈列与销售话术。",
     },
 ]
 
@@ -388,7 +387,7 @@ def match_query_template(query: str) -> Optional[Dict[str, Any]]:
 SMALL_TALK_GUIDE = {
     # === 元问题 ===
     "你是谁": "我是**广汽云 ChatBI**，由谢志锋主导构建的智能经营分析助手。\n\n我能帮你：\n📊 查销量、营收、达成率\n💰 分析营销投放与 CPL\n🚗 看客流转化与漏斗\n\n试试点击下方 15 条快捷提问，每条都能精准返回对应图表和数据！",
-    "你能做什么": "我可以基于广汽集团真实销售数据回答经营问题：\n\n✅ **整车销售**：销量、营收、达成率、单车均价、车型对比\n✅ **市场营销**：渠道投放、CPL 排名、抖音线索占比、ROI\n✅ **渠道经营**：客流漏斗、门店转化率、低效门店预警\n\n点击快捷提问试试吧 →",
+    "你能做什么": "我可以基于广汽集团真实销售数据回答经营问题：\n\n✅ **整车销售**：销量、营收、达成率、单车均价、车型对比\n✅ **市场营销**：渠道投放、CPL 排名、抖音线索占比、ROI\n✅ **渠道经营**：客流漏斗、大区转化率、低转化大区预警\n\n点击快捷提问试试吧 →",
     "怎么用": "3 步上手：\n\n1️⃣ **点击下方快捷提问**（15 条覆盖 4 大业务域）\n2️⃣ 等待 1-3 秒，自动返回 SQL + 图表 + 经营洞察\n3️⃣ 查看驾驶舱 / 历史会话 / 语义层做深度管理\n\n💡 也可直接输入自然语言，如：'昊铂 HT 在华南区 4 月销量'",
 
     # === 寒暄/打招呼 ===
