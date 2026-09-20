@@ -46,6 +46,14 @@ from api.schemas import (
     # 归因指标目录（P1）
     MetricCatalogResponse,
     SUPPORTED_METRICS,
+    # ⭐ P2-SprintB：SOP 步骤化模板（V2 schemas）
+    StepSpec,
+    AttributionTemplateV2,
+    TemplateCreateRequestV2,
+    TemplateUpdateRequestV2,
+    TemplateCloneRequestV2,
+    TemplateAuditItem,
+    TemplateAuditListResponse,
 )
 from core.nl2sql_engine import Nl2SqlEngine
 from core.chart_recommender import ChartRecommender
@@ -227,6 +235,10 @@ def collect_bad_case(req: BadCaseFeedbackRequest):
 from core.attribution_templates import AttributionTemplateManager
 template_manager = AttributionTemplateManager()
 
+# ⭐ P2-SprintB：SOP 步骤化执行引擎（run / preview 用）
+from core.sop_executor import SopExecutor
+sop_executor = SopExecutor()
+
 
 # ─── Sprint 5.3 SOP 高频归因引擎 ──────────────────────────────────────
 @app.post("/api/sop/analyze", response_model=SopAnalysisResponse, tags=["SOP 归因引擎"])
@@ -364,6 +376,282 @@ def get_attribution_template(template_id: str):
     if not t:
         raise HTTPException(status_code=404, detail="模板不存在")
     return AttributionTemplateResponse(success=True, template=AttributionTemplateItem(**t))
+
+
+# ────────────────────────────────────────────────────────────────────
+# ⭐ P2-SprintB：SOP 步骤化模板（V2 路由）
+#   - /api/templates/v2/*             业务用户 CRUD + clone + audit
+#   - /api/templates/v2/{id}/run      按模板跑完整 SOP（核心端点）
+#   - /api/templates/v2/{id}/preview  预览前 2 步
+#   - /api/admin/templates/*          admin 系统模板管理（role 权限门禁）
+# ────────────────────────────────────────────────────────────────────
+
+
+# ─── 业务用户：V2 模板 CRUD（兼容老接口 + 新 steps） ─────────────────
+@app.post("/api/templates/v2/create", tags=["模板 V2"])
+def v2_create_template(
+    req: TemplateCreateRequestV2,
+    user: CurrentUser = Depends(get_current_user),
+):
+    """
+    业务用户新建 V2 模板（含 steps SOP 步骤化结构）
+    - scope 默认 user（业务用户自用）
+    - 自动写 audit 初始快照
+    """
+    try:
+        steps_payload = [s.model_dump() for s in req.steps]
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=f"steps 校验失败: {e}")
+
+    result = template_manager.create_template(
+        name=req.name,
+        description=req.description,
+        scope="user",  # 业务用户只能创建 user scope
+        steps=steps_payload,
+        owner_user=user.username,
+        owner_role=user.role,
+        updated_by=user.username,
+        change_reason=req.change_reason or "create via API",
+    )
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "创建失败"))
+    return result
+
+
+@app.put("/api/templates/v2/{template_id}", tags=["模板 V2"])
+def v2_update_template(
+    template_id: str,
+    req: TemplateUpdateRequestV2,
+    user: CurrentUser = Depends(get_current_user),
+):
+    """业务用户更新自有模板（非自有/preset 走 admin 端点）"""
+    if template_id.startswith("preset_"):
+        raise HTTPException(status_code=403, detail="系统预设模板请使用 /api/admin/templates/{id}")
+    # body 里的 template_id 应与路径一致（兼容老调用方）
+    if req.template_id and req.template_id != template_id:
+        raise HTTPException(status_code=400, detail=f"路径与 body template_id 不一致: {template_id} vs {req.template_id}")
+    steps_payload = [s.model_dump() for s in req.steps] if req.steps else None
+    result = template_manager.update_template(
+        template_id=template_id,
+        name=req.name,
+        description=req.description,
+        steps=steps_payload,
+        owner_user=user.username,
+        updated_by=user.username,
+        change_reason=req.change_reason or f"update by {user.username}",
+    )
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "更新失败"))
+    tpl = template_manager.get_template(template_id)
+    return {"success": True, "template_id": template_id, "template": tpl}
+
+
+@app.delete("/api/templates/v2/{template_id}", tags=["模板 V2"])
+def v2_delete_template(
+    template_id: str,
+    user: CurrentUser = Depends(get_current_user),
+):
+    """业务用户删除自有模板"""
+    if template_id.startswith("preset_"):
+        raise HTTPException(status_code=403, detail="系统预设模板不可删除")
+    result = template_manager.delete_template(template_id, owner_user=user.username)
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "删除失败"))
+    return result
+
+
+@app.post("/api/templates/v2/clone", tags=["模板 V2"])
+def v2_clone_template(
+    req: TemplateCloneRequestV2,
+    user: CurrentUser = Depends(get_current_user),
+):
+    """
+    业务用户克隆模板（market / preset → user）
+    - 业务用户必传 owner_user
+    - 克隆后 scope=user，归当前用户所有
+    """
+    result = template_manager.clone_template(
+        source_template_id=req.source_template_id,
+        target_scope=req.target_scope,
+        new_name=req.new_name,
+        owner_user=user.username,
+    )
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "克隆失败"))
+    return result
+
+
+@app.get("/api/templates/v2/{template_id}/audit", response_model=TemplateAuditListResponse, tags=["模板 V2"])
+def v2_template_audit(
+    template_id: str,
+    user: CurrentUser = Depends(get_current_user),
+    limit: int = 10,
+):
+    """查看模板变更历史（业务用户只能看自己可见的模板）"""
+    # 简单鉴权：业务用户只能看自己创建的 user 模板 + 所有 system/market
+    tpl = template_manager.get_template(template_id)
+    if not tpl:
+        raise HTTPException(status_code=404, detail="模板不存在")
+    if tpl.get("scope") == "user" and tpl.get("owner_user") != user.username and user.role not in ("admin", "analyst"):
+        raise HTTPException(status_code=403, detail="无权查看该模板的审计历史")
+    history = template_manager.get_audit_history(template_id, limit=limit)
+    items = [TemplateAuditItem(**h) for h in history]
+    return TemplateAuditListResponse(template_id=template_id, history=items)
+
+
+# ─── 业务用户：Run + Preview（核心端点） ───────────────────────────────
+class TemplateRunRequest(BaseModel):
+    """模板执行请求"""
+    time_window: Optional[Dict[str, str]] = Field(
+        None, description='{"start":"2025-02-01","end":"2025-04-30"}，None 用默认'
+    )
+    max_steps: Optional[int] = Field(None, ge=1, le=20, description="限制执行步数（preview 用）")
+    llm_conclusion: bool = Field(False, description="是否启用 LLM 生成详细结论（默认关闭）")
+
+
+@app.post("/api/templates/v2/{template_id}/run", tags=["模板 V2"])
+def v2_template_run(
+    template_id: str,
+    req: TemplateRunRequest,
+    user: CurrentUser = Depends(get_current_user),
+):
+    """
+    核心端点：按模板跑完整 SOP，返回结构化归因报告
+    - 行级过滤 + 字段脱敏自动应用（业务用户只看自己部门+区域）
+    - 每个 step 输出 status (ok/warn/bad) + conclusion + data + sql
+    """
+    tpl = template_manager.get_template(template_id)
+    if not tpl:
+        raise HTTPException(status_code=404, detail="模板不存在")
+    # 鉴权：业务用户只能跑自己可见的模板
+    if tpl.get("scope") == "user" and tpl.get("owner_user") not in (None, user.username) and user.role not in ("admin", "analyst"):
+        raise HTTPException(status_code=403, detail="无权执行该模板")
+    try:
+        result = sop_executor.run(
+            template=tpl,
+            user=user,
+            time_window=req.time_window,
+            max_steps=req.max_steps,
+            llm_conclusion=req.llm_conclusion,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"SOP 执行异常: {e}")
+    return result
+
+
+@app.post("/api/templates/v2/{template_id}/preview", tags=["模板 V2"])
+def v2_template_preview(
+    template_id: str,
+    req: TemplateRunRequest,
+    user: CurrentUser = Depends(get_current_user),
+):
+    """
+    预览端点：仅跑前 2 步（max_steps=2 默认），用于 SOP 编排器实时反馈
+    - 适用于前端管理员配置模板时实时看 DuckDB 查询结果
+    """
+    tpl = template_manager.get_template(template_id)
+    if not tpl:
+        raise HTTPException(status_code=404, detail="模板不存在")
+    # 预览不需要鉴权（管理员预览自己配的模板）
+    max_steps = req.max_steps if req.max_steps else 2
+    try:
+        result = sop_executor.run(
+            template=tpl,
+            user=user,
+            time_window=req.time_window,
+            max_steps=max_steps,
+            llm_conclusion=False,
+        )
+        # 标记为预览
+        result["is_preview"] = True
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"预览异常: {e}")
+
+
+# ─── 管理员：系统模板管理（role 权限门禁） ─────────────────────────────
+def _is_admin(user: CurrentUser) -> bool:
+    return user.role in ("admin", "analyst")
+
+
+@app.post("/api/admin/templates", tags=["管理员-模板"])
+def admin_create_template(
+    req: TemplateCreateRequestV2,
+    user: CurrentUser = Depends(get_current_user),
+):
+    """管理员新建 system / role_default / market 模板"""
+    if not _is_admin(user):
+        raise HTTPException(status_code=403, detail=f"权限不足：需要 admin/analyst，当前 {user.role}")
+    try:
+        steps_payload = [s.model_dump() for s in req.steps]
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=f"steps 校验失败: {e}")
+    result = template_manager.create_template(
+        name=req.name,
+        description=req.description,
+        scope=req.scope,  # admin 可指定 system/role_default/market/user
+        steps=steps_payload,
+        owner_role=user.role,
+        updated_by=user.username,
+        change_reason=req.change_reason or f"admin create by {user.username}",
+    )
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "创建失败"))
+    return result
+
+
+@app.put("/api/admin/templates/{template_id}", tags=["管理员-模板"])
+def admin_update_template(
+    template_id: str,
+    req: TemplateUpdateRequestV2,
+    user: CurrentUser = Depends(get_current_user),
+):
+    """管理员更新模板（含 preset_*，自动 seed DB override）"""
+    if not _is_admin(user):
+        raise HTTPException(status_code=403, detail=f"权限不足：需要 admin/analyst，当前 {user.role}")
+    steps_payload = [s.model_dump() for s in req.steps] if req.steps else None
+    result = template_manager.update_template(
+        template_id=template_id,
+        name=req.name,
+        description=req.description,
+        steps=steps_payload,
+        owner_user=None,  # admin update 不按 owner 过滤（允许改任何 user 模板）
+        allow_preset=True,  # admin 可改 preset_*
+        updated_by=user.username,
+        change_reason=req.change_reason or f"admin update by {user.username}",
+    )
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "更新失败"))
+    tpl = template_manager.get_template(template_id)
+    return {"success": True, "template_id": template_id, "template": tpl}
+
+
+@app.delete("/api/admin/templates/{template_id}", tags=["管理员-模板"])
+def admin_delete_template(
+    template_id: str,
+    user: CurrentUser = Depends(get_current_user),
+):
+    """管理员删除模板（preset_* 默认仍禁删；需 allow=True 才删）"""
+    if not _is_admin(user):
+        raise HTTPException(status_code=403, detail=f"权限不足：需要 admin/analyst，当前 {user.role}")
+    result = template_manager.delete_template(template_id, allow_preset=False)
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "删除失败"))
+    return result
+
+
+@app.get("/api/admin/templates/{template_id}/audit", response_model=TemplateAuditListResponse, tags=["管理员-模板"])
+def admin_template_audit(
+    template_id: str,
+    user: CurrentUser = Depends(get_current_user),
+    limit: int = 50,
+):
+    """管理员查模板完整审计历史（limit 默认 50，可看更多）"""
+    if not _is_admin(user):
+        raise HTTPException(status_code=403, detail=f"权限不足：需要 admin/analyst，当前 {user.role}")
+    history = template_manager.get_audit_history(template_id, limit=limit)
+    items = [TemplateAuditItem(**h) for h in history]
+    return TemplateAuditListResponse(template_id=template_id, history=items)
 
 
 # ─── Sprint 5.1 SSE 流式问数端点 ──────────────────────────────────────
