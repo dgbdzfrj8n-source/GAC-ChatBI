@@ -34,6 +34,66 @@ try:
 except ImportError:
     HAS_OPENAI_SDK = False
 
+
+def _call_llm_direct() -> Dict[str, Any]:
+    """诊断用：直接打 DeepSeek API，绕过 SDK，返回完整诊断结果"""
+    import json, urllib.request, urllib.error, os as _os
+
+    api_key = _os.environ.get("LLM_API_KEY", "")
+    base_url = _os.environ.get("LLM_BASE_URL", "https://api.deepseek.com/v1")
+    model = "deepseek-chat"
+
+    result: Dict[str, Any] = {
+        "env_key_set": bool(api_key),
+        "env_key_prefix": api_key[:8] + "..." if api_key else "(empty)",
+        "env_key_len": len(api_key),
+        "base_url": base_url,
+        "has_openai_sdk": HAS_OPENAI_SDK,
+        "deepseek_http_status": None,
+        "deepseek_response": None,
+        "error": None,
+    }
+
+    if not api_key:
+        result["error"] = "LLM_API_KEY not set in environment"
+        return result
+
+    payload = json.dumps({
+        "model": model,
+        "messages": [{"role": "user", "content": "Say 'OK' in one word."}],
+        "max_tokens": 10,
+        "temperature": 0.0,
+    }).encode("utf-8")
+
+    req = urllib.request.Request(
+        f"{base_url}/chat/completions",
+        data=payload,
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            body = resp.read().decode("utf-8")
+            result["deepseek_http_status"] = resp.status
+            parsed = json.loads(body)
+            result["deepseek_response"] = parsed.get("choices", [{}])[0].get("message", {}).get("content", "")
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", errors="replace")
+        result["deepseek_http_status"] = e.code
+        try:
+            err_body = json.loads(body)
+            result["error"] = f"HTTP {e.code}: {err_body.get('error', {}).get('message', body[:200])}"
+        except Exception:
+            result["error"] = f"HTTP {e.code}: {body[:200]}"
+    except Exception as e:
+        result["error"] = str(e)
+
+    return result
+
 # 预置典型问数场景的 Mock 录像库（面试与断网防翻车保证）
 MOCK_KNOWLEDGE_BASE = {
     "2025年3月埃安销量与预算达成率": {

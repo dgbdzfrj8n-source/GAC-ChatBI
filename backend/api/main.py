@@ -125,6 +125,15 @@ def health_check():
         "timestamp": datetime.datetime.now().isoformat()
     }
 
+
+@app.get("/api/debug/llm", tags=["基础监控"])
+def debug_llm():
+    """调试端点：诊断 LLM 配置是否正确注入 + 真实调用 DeepSeek"""
+    import os as _os
+    from core.nl2sql_engine import HAS_OPENAI_SDK, _call_llm_direct
+    return _call_llm_direct()
+
+
 @app.get("/api/metrics", response_model=MetricListResponse, tags=["指标资产"])
 def get_metrics_dict():
     """获取集团标准经营分析指标体系字典"""
