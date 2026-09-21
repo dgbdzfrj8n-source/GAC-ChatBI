@@ -72,6 +72,7 @@ export interface StreamCallbacks {
 
 /**
  * 流式调用 /api/chat/stream
+ * [FIX] 必须带 Authorization 头，否则后端返回 401，前端 catch 触发降级到 mock
  */
 export async function streamChat(
   query: string,
@@ -79,15 +80,24 @@ export async function streamChat(
   signal?: AbortSignal
 ): Promise<void> {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://gac-chatbi-api.onrender.com";
+  // 读取 token（不通过 authFetch，因为 SSE 流式响应需要直接拿到原始 ReadableStream）
+  const token = typeof window !== "undefined" ? localStorage.getItem("gac_chatbi_token") : null;
   const res = await fetch(`${apiUrl}/api/chat/stream`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
     body: JSON.stringify({ query, force_mock: false }),
     signal,
   });
 
   if (!res.ok || !res.body) {
-    throw new Error(`HTTP ${res.status}`);
+    let detail = "";
+    try {
+      detail = await res.text();
+    } catch {}
+    throw new Error(`HTTP ${res.status}${detail ? " · " + detail.slice(0, 120) : ""}`);
   }
 
   const reader = res.body.getReader();

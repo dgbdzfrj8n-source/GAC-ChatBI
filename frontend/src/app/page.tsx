@@ -449,18 +449,27 @@ export default function ChatPage() {
         },
         abortRef.current.signal
       );
-    } catch (err) {
-      // 网络失败 → 降级 Mock
-      console.warn("SSE 失败，降级 Mock:", err);
+    } catch (err: any) {
+      // 网络失败 → 显示真实错误（不再静默降级到 MOCK_WELCOME，避免掩盖问题）
+      const msg = err?.message || String(err);
+      console.error("[SSE] 调用失败:", err);
+      setStreamStatus(`❌ 请求失败: ${msg}`);
       setMessages((prev) =>
         prev.map((m) =>
           m.id === assistantId
-            ? { ...m, content: MOCK_WELCOME.summary_insight, result: MOCK_WELCOME }
+            ? {
+                ...m,
+                content: `❌ 请求失败：${msg}\n\n请检查：\n- 是否已登录（localStorage 里有 gac_chatbi_token）\n- 后端 API 是否可达（${API_URL}）`,
+                result: {
+                  ...(m.result as ChartResult),
+                  error: msg,
+                  success: false,
+                },
+              }
             : m
         )
       );
-      setCurrentResult(MOCK_WELCOME);
-      setStreamStatus("");
+      setCurrentResult(null);
     } finally {
       setLoading(false);
       abortRef.current = null;
