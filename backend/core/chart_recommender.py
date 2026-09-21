@@ -29,6 +29,10 @@ class ChartRecommender:
         if not data or not columns:
             return {"chart_type": "table", "echarts_option": None}
 
+        # [FIX] 单条记录强制表格展示：避免画无意义的折线/柱状（1 个点无法体现趋势或对比）
+        if len(data) == 1:
+            return {"chart_type": "table", "echarts_option": None}
+
         # 区分维度列 (String/Date) 与 指标数值列 (Number)
         dim_cols = []
         metric_cols = []

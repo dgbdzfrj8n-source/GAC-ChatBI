@@ -215,6 +215,11 @@ class Nl2SqlEngine:
         "天气", "新闻", "今天", "昨天", "明天",
         "开心", "高兴", "难过", "郁闷", "累", "忙",
         "吃饭", "睡觉", "下班", "休息", "开会",
+        # 新增：时间元问题（不查业务数据，直接回答当前时间）
+        "几月", "几号", "几月了", "几月份", "几个月",
+        "今年", "明年", "去年", "今年是哪一年", "今年是哪年",
+        "几点了", "什么时候", "星期几",
+        "现在几点", "今天几号", "今天星期几", "现在几月", "现在第几",
     ]
 
     META_ANSWER = """我是**广汽云 ChatBI**，由谢志锋主导构建的智能经营分析助手。
@@ -240,6 +245,46 @@ class Nl2SqlEngine:
         if match_small_talk(query):
             return True
         return any(t in q for t in self.SMART_TALK_TRIGGERS)
+
+    # 时间元问题关键词
+    TIME_TRIGGERS = {
+        # 现在/今天 + 第几月/几月/几月了/几月份 => 给当前月份
+        "month": ["现在第几月份", "现在第几月", "现在是几月", "现在几月", "这个月", "现在是几月份",
+                  "几月了", "几月份", "几月", "几月份了", "当前月份"],
+        # 现在/今天 + 几号/几号了 => 给当前日期
+        "day": ["今天几号", "现在几号", "几号了", "今天是几号", "今天几号了", "今天日期", "今天日期是"],
+        # 现在/今天/几点了 => 给当前时间
+        "now": ["现在几点", "几点了", "现在时间", "现在时间几点"],
+        # 星期几
+        "weekday": ["今天星期几", "今天是星期几", "现在星期几", "今天礼拜几", "礼拜几"],
+        # 今年/哪一年
+        "year": ["今年是哪一年", "今年是哪年", "今年几年", "今年多少年", "今年"],
+    }
+
+    def _answer_time_question(self, query: str) -> Optional[str]:
+        """对命中时间元问题的查询返回精确短答案；不命中则返回 None 走默认 META_ANSWER。"""
+        from datetime import datetime
+        try:
+            now = datetime.now()
+            q = query.strip()
+            # 按优先级匹配
+            for kind, triggers in self.TIME_TRIGGERS.items():
+                for t in triggers:
+                    if t in q:
+                        if kind == "month":
+                            return f"📅 现在是 **{now.year} 年 {now.month} 月**（本月共 30 天，今天是 {now.day} 号）。"
+                        if kind == "day":
+                            return f"📅 今天日期是 **{now.year}-{now.month:02d}-{now.day:02d}**。"
+                        if kind == "now":
+                            return f"⏰ 现在是 **{now.strftime('%H:%M')}**（{now.year}-{now.month:02d}-{now.day:02d}）。"
+                        if kind == "weekday":
+                            names = ["星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"]
+                            return f"📅 今天是 **{names[now.weekday()]}**。"
+                        if kind == "year":
+                            return f"📅 今年是 **{now.year} 年**。"
+        except Exception:
+            pass
+        return None
 
     def _render_insight_template(self, insight: str, exec_res: Dict[str, Any], query: str) -> str:
         """渲染 insight 模板里的占位符，把 {actual}, {target}, {rate} 等替换为真实值。
@@ -461,6 +506,9 @@ class Nl2SqlEngine:
             }
 
         if self._is_meta_question(query):
+            # 对于"现在第几月"这类时间元问题，返回真实时间而不是默认 META_ANSWER 长版介绍
+            time_reply = self._answer_time_question(query)
+            insight_text = time_reply if time_reply else self.META_ANSWER
             return {
                 "query": query,
                 "thought_steps": ["命中闲聊/元问题，跳过 SQL 生成"],
@@ -471,7 +519,7 @@ class Nl2SqlEngine:
                 "row_count": 0,
                 "execution_time_ms": 0,
                 "error": None,
-                "summary_insight": self.META_ANSWER,
+                "summary_insight": insight_text,
                 "healed": False,
                 "engine": "meta",
                 "is_meta_answer": True,
