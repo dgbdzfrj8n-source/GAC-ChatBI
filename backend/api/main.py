@@ -181,6 +181,7 @@ def chat_query(req: ChatQueryRequest, user: CurrentUser = Depends(get_current_us
         engine=result.get("engine", "DuckDB"),
         error=result.get("error"),
         is_unsupported_entity=result.get("is_unsupported_entity", False),
+        is_empty_result=result.get("is_empty_result", False),
     )
 
 

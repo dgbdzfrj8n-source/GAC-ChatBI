@@ -28,6 +28,7 @@ class ChatQueryResponse(BaseModel):
     engine: str = Field("DuckDB", description="底层数仓计算引擎")
     error: Optional[str] = Field(None, description="错误详情(若有)")
     is_unsupported_entity: bool = Field(False, description="是否触发了「暂不支持实体维度」诚实提示拦截")
+    is_empty_result: bool = Field(False, description="查询成功但数据为空（用于触发友好提示）")
 
 # --- 2. 经营指标库契约 ---
 class MetricItem(BaseModel):
