@@ -711,7 +711,7 @@ class Nl2SqlEngine:
             "healed": healed,
             "engine": self.sql_executor.engine_type,
             "permission": perm_info if current_user and exec_res["success"] else None,
-            "is_empty_result": exec_res["success"] and (not exec_res["data"] or len(exec_res["data"]) == 0),
+            "is_empty_result": bool(exec_res.get("success") and (not exec_res.get("data") or len(exec_res.get("data", [])) == 0)),
             "_chart_hint": getattr(self, "_last_template_chart_hint", None),
         }
 
