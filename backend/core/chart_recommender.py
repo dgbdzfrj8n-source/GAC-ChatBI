@@ -22,21 +22,48 @@ class ChartRecommender:
     def __init__(self):
         pass
 
-    def recommend(self, query: str, columns: List[str], data: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def recommend(self, query: str, columns: List[str], data: List[Dict[str, Any]], template_chart_hint: Optional[str] = None) -> Dict[str, Any]:
         """
         根据列特征与数据模式推断图表类型，并组装完整的 ECharts Option
+        template_chart_hint: 从模板透传的 chart_hint（优先级最高）
         """
         if not data or not columns:
             return {"chart_type": "table", "echarts_option": None}
 
         # [FIX] 单条记录强制表格展示：避免画无意义的折线/柱状（1 个点无法体现趋势或对比）
-        if len(data) == 1:
+        if len(data) == 1 and template_chart_hint not in ("pie", "funnel"):
             return {"chart_type": "table", "echarts_option": None}
 
-        # ── [P0 修复] 漏斗图识别 ──
-        # 触发条件：query 包含"漏斗" 或 行数=3 且列名为 阶段 + 人数
+        # ── [P1 修复] funnel 模板 hint 优先：Q14 漏斗等场景 ──
+        if template_chart_hint == "funnel" and len(data) >= 2:
+            name_col = columns[0]
+            val_col = columns[-1] if len(columns) > 1 else columns[0]
+            return self._build_funnel_chart(query, name_col, val_col, data)
+
+        # ── [P0 修复] 漏斗图识别（兜底） ──
         if self._is_funnel(query, columns, data):
             return self._build_funnel_chart(query, columns[0], columns[1] if len(columns) > 1 else "value", data)
+
+        # ── [P1 修复] pie 模板 hint（Q08 投放占比 / Q11 抖音占比） ──
+        if template_chart_hint == "pie" and 2 <= len(data) <= 8:
+            dim_col = columns[0]
+            metric_col = next((c for c in columns if c != dim_col), columns[-1])
+            return self._build_pie_chart(query, dim_col, metric_col, data)
+
+        # ── [P1 修复] bar 模板 hint 优先：避免被 auto 推断覆盖为 dual_axis ──
+        if template_chart_hint == "bar" and len(data) <= 20:
+            dim_col = columns[0]
+            metric_cols = [c for c in columns[1:] if any(isinstance(r.get(c), (int, float)) for r in data)]
+            if not metric_cols:
+                metric_cols = columns[1:]
+            return self._build_bar_chart(query, dim_col, metric_cols, data)
+
+        if template_chart_hint == "line":
+            dim_col = columns[0]
+            metric_cols = [c for c in columns[1:] if any(isinstance(r.get(c), (int, float)) for r in data)]
+            if not metric_cols:
+                metric_cols = columns[1:]
+            return self._build_line_chart(query, dim_col, metric_cols, data)
 
         # 区分维度列 (String/Date) 与 指标数值列 (Number)
         dim_cols = []

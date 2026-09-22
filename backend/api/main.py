@@ -748,10 +748,20 @@ async def chat_stream(req: ChatQueryRequest, user: CurrentUser = Depends(get_cur
                 return
 
             # Step 6: 推送图表配置
+            # [P1 修复] 优先使用模板的 chart_hint（避免 chart_recommender 把 Q10 误判为 dual_axis）
+            tmpl_chart_hint = None
+            try:
+                if result.get("template_id"):
+                    tmpl_chart_hint = result["template_id"]  # 这里只是占位，下面单独查
+            except Exception:
+                pass
+            # 通过 sql 引用检查是否是模板命中（看 thought_steps 是否有"已命中 15 条精确问数模板"）
+            used_template = any("已命中 15 条精确问数模板" in (s or "") for s in (result.get("thought_steps") or []))
             chart_info = chart_recommender.recommend(
                 query=req.query,
                 columns=result.get("columns", []),
-                data=result.get("data", [])
+                data=result.get("data", []),
+                template_chart_hint=result.get("_chart_hint") if used_template else None,
             )
             chart_payload = {
                 "chart_type": chart_info.get("chart_type", "table"),

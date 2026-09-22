@@ -203,6 +203,9 @@ class Nl2SqlEngine:
         return None
 
     # 闲聊/元问题触发词（增强版：覆盖寒暄、反馈、验证码、跑题）
+    # [P1 修复] 移除"今天/昨天/明天"等纯时间词——这些经常跟业务词组合
+    #          （如"昨天埃安卖了多少车"），让 _detect_unsupported_entity
+    #          通过 LLM/模板路径处理，截走会导致静默失败
     SMART_TALK_TRIGGERS = [
         "你是谁", "你叫什么", "介绍一下", "关于你", "你是ai吗",
         "怎么用", "如何使用", "帮助", "功能介绍",
@@ -212,13 +215,12 @@ class Nl2SqlEngine:
         # 新增：反馈/投诉/测试
         "不好用", "答错", "答错了", "错误", "测试", "怎么啦",
         # 新增：跑题识别（不含业务关键词）
-        "天气", "新闻", "今天", "昨天", "明天",
+        "天气", "新闻",
         "开心", "高兴", "难过", "郁闷", "累", "忙",
         "吃饭", "睡觉", "下班", "休息", "开会",
-        # 新增：时间元问题（不查业务数据，直接回答当前时间）
+        # 时间元问题（"今天星期几"这类没业务意图的）
         "几月", "几号", "几月了", "几月份", "几个月",
-        "今年", "明年", "去年", "今年是哪一年", "今年是哪年",
-        "几点了", "什么时候", "星期几",
+        "几点了", "什么时候",
         "现在几点", "今天几号", "今天星期几", "现在几月", "现在第几",
     ]
 
@@ -385,6 +387,9 @@ class Nl2SqlEngine:
                 "{step2}": gv("试驾→成交_pct"),
                 "{count}": str(len(data)),
                 "{lowest}": gv("转化率_pct"),
+                # [P1 修复] Q06 环比下降最多 / 通用 品牌+环比 字段
+                "{brand}": gv("品牌", "brand_name"),
+                "{rate}": rate_val if rate_val != "—" else gv("环比_pct"),
             }
 
             for k, v in replacements.items():
@@ -443,6 +448,39 @@ class Nl2SqlEngine:
                 "💡 如需预测模型（销量预测 / 客流预测），需对接时间序列模型（Prophet/ARIMA）"
             ),
             "keywords": ["预测", "明年", "下个月", "未来", "forecast", "predict"],
+        },
+        # [P1 修复] 新增：竞品数据不在数仓范围（避免 LLM 幻觉写"比亚迪"等）
+        "竞品对比": {
+            "reply": (
+                "抱歉 😅 当前 ChatBI 数据源是广汽集团内部经营主库，**不含外部竞品数据**。\n\n"
+                "✅ 我们能提供的对比：\n"
+                "• **集团内部 3 大品牌**：广汽埃安 / 广汽传祺 / 昊铂 的销量、营收、CPL 互比\n"
+                "• **跨大区/跨车型/跨渠道** 的内部对比\n\n"
+                "💡 **建议试试这些**：\n"
+                "• 「埃安和传祺各车型销量对比」\n"
+                "• 「各大区广汽埃安达成率对比」\n"
+                "• 「抖音渠道与懂车帝 CPL 对比」\n\n"
+                "📌 外部竞品分析需对接行业第三方数据（如乘联会、懂车帝榜单）"
+            ),
+            "keywords": ["比亚迪", "特斯拉", "tesla", "byd", "蔚来", "小鹏", "理想", "li", "xpeng", "nio",
+                         "上汽", "东风", "一汽", "长安", "吉利", "奇瑞", "领克", "wey", "红旗",
+                         "广丰", "广本", "丰田", "本田", "大众", "奔驰", "宝马", "奥迪", "外部", "竞品", "对手"],
+        },
+        # [P1 修复] 新增：利润/成本字段数仓没有，避免 LLM 把"利润"误读为"营收"
+        "利润成本": {
+            "reply": (
+                "抱歉 😅 当前数仓**没有成本/利润字段**，无法直接计算利润。\n\n"
+                "✅ 我们能提供的财务指标：\n"
+                "• **总营收 / 单车均价**（基于 gross_revenue 字段）\n"
+                "• **单车毛利率估算** = 1 - 折扣率（仅供经营参考，非真实毛利率）\n"
+                "• **单车毛利贡献 Top 车型**：试试快捷提问「单车毛利贡献最高的车型」\n\n"
+                "💡 **建议**：\n"
+                "• 「各品牌单车成交均价」→ 看营收端\n"
+                "• 「单车毛利贡献最高的车型」→ 看毛利贡献排序\n"
+                "• 「各营销渠道 ROI」→ 看投放端效率\n\n"
+                "📌 真实成本/净利率数据需对接财务系统（如 SAP、金蝶、用友）"
+            ),
+            "keywords": ["净利润", "利润率", "净利率", "毛利率", "总成本", "成本率", "净利"],
         },
     }
     
@@ -547,6 +585,8 @@ class Nl2SqlEngine:
             insight = tmpl["insight"]
             is_mock = False
             thought_steps.append(f"已命中 15 条精确问数模板（{tmpl['id']}），跳过 LLM 直接执行验证 SQL")
+            # [P1 修复] 把模板的 chart_hint 透传到 chart_recommender，避免被自动推断覆盖
+            self._last_template_chart_hint = tmpl.get("chart_hint")
 
         # 2. 兼容旧 Mock 兜底（仅在 force_mock=true 或无 API key 时触发）
         elif force_mock or not self.api_key:
@@ -662,6 +702,7 @@ class Nl2SqlEngine:
             "engine": self.sql_executor.engine_type,
             "permission": perm_info if current_user and exec_res["success"] else None,
             "is_empty_result": exec_res["success"] and (not exec_res["data"] or len(exec_res["data"]) == 0),
+            "_chart_hint": getattr(self, "_last_template_chart_hint", None),
         }
 
 if __name__ == "__main__":
