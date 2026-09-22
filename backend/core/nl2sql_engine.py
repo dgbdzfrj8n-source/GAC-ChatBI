@@ -542,9 +542,11 @@ class Nl2SqlEngine:
         tmpl = match_query_template(query)
         if tmpl:
             raw_sql = tmpl["sql"]
+            # 占位符默认替换（{ym} 默认 2025-03；其他参数 SQL 里没用到）
+            raw_sql = raw_sql.replace("{ym}", "2025-03")
             insight = tmpl["insight"]
             is_mock = False
-            thought_steps.append("已命中 15 条精确问数模板，跳过 LLM 直接执行验证 SQL")
+            thought_steps.append(f"已命中 15 条精确问数模板（{tmpl['id']}），跳过 LLM 直接执行验证 SQL")
 
         # 2. 兼容旧 Mock 兜底（仅在 force_mock=true 或无 API key 时触发）
         elif force_mock or not self.api_key:
