@@ -14,11 +14,23 @@ interface DataVisualizerProps {
 }
 
 // 格式化数值显示
-const fmt = (val: unknown): string => {
+// [P2 修复] 改进大数字格式化：万/亿/M 三档（基于列名判断量级）
+const fmt = (val: unknown, colName?: string): string => {
   if (val === null || val === undefined) return "-";
   if (typeof val === "number") {
-    if (Math.abs(val) >= 1_000_000) return (val / 1_000_000).toFixed(2) + " M";
-    if (Math.abs(val) >= 1_000) return val.toLocaleString("zh-CN", { maximumFractionDigits: 0 });
+    // 已知是万元/亿元/百分比等列，直接显示
+    const col = (colName || "").toLowerCase();
+    if (col.includes("billion") || col.includes("亿元")) return val.toFixed(2) + " 亿元";
+    if (col.includes("wan") || col.includes("万")) return val.toFixed(1) + " 万";
+    if (col.includes("pct") || col.includes("率")) return val.toFixed(2) + "%";
+    if (col.includes("roi") || col.includes("倍数")) return val.toFixed(2) + "x";
+    if (col.includes("cpl") || col.includes("元/条")) return val.toFixed(1) + " 元";
+
+    // 自动量级
+    const abs = Math.abs(val);
+    if (abs >= 100_000_000) return (val / 100_000_000).toFixed(2) + " 亿";   // 亿
+    if (abs >= 10_000) return (val / 10_000).toFixed(2) + " 万";              // 万
+    if (abs >= 1_000) return val.toLocaleString("zh-CN", { maximumFractionDigits: 0 });
     return Number.isInteger(val) ? val.toString() : val.toFixed(2);
   }
   return String(val);
@@ -82,6 +94,21 @@ export default function DataVisualizer({ chartType, echartsOption, columns, data
       return <p className="text-sm text-gray-400 text-center py-8">暂无数据</p>;
     }
 
+    // [P2 修复] 单点 KPI 卡片渲染（适用于 Q08 / Q11 这种"单条数字+百分比"查询）
+    if (chartType === "single_kpi" && data.length === 1) {
+      const row = data[0];
+      return (
+        <div className="grid grid-cols-2 gap-4 py-4">
+          {columns.map((col) => (
+            <div key={col} className="bg-gradient-to-br from-emerald-50 to-blue-50 rounded-lg p-4 border border-emerald-100">
+              <p className="text-xs text-gray-500 mb-1">{colLabel(col)}</p>
+              <p className="text-2xl font-bold text-emerald-700">{fmt(row[col], col)}</p>
+            </div>
+          ))}
+        </div>
+      );
+    }
+
     return (
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
@@ -102,7 +129,7 @@ export default function DataVisualizer({ chartType, echartsOption, columns, data
               <tr key={ri} className="border-b border-gray-100 hover:bg-emerald-50/30 transition-colors">
                 {columns.map((col) => (
                   <td key={col} className="px-3 py-2.5 text-gray-700 whitespace-nowrap">
-                    {fmt(row[col])}
+                    {fmt(row[col], col)}
                   </td>
                 ))}
               </tr>

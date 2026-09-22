@@ -31,8 +31,11 @@ class ChartRecommender:
             return {"chart_type": "table", "echarts_option": None}
 
         # [FIX] 单条记录强制表格展示：避免画无意义的折线/柱状（1 个点无法体现趋势或对比）
-        if len(data) == 1 and template_chart_hint not in ("pie", "funnel"):
-            return {"chart_type": "table", "echarts_option": None}
+        # [P2 修复] 但是 template_chart_hint="bar"/"line"/"funnel"/"pie" 时允许渲染
+        if len(data) == 1 and template_chart_hint not in ("pie", "funnel", "bar", "line"):
+            # 单条 + 大数字：渲染 KPI 卡片（前端用 single_kpi 类型渲染大数字）
+            metric_col = columns[-1]
+            return {"chart_type": "single_kpi", "echarts_option": None, "metric_col": metric_col}
 
         # ── [P1 修复] funnel 模板 hint 优先：Q14 漏斗等场景 ──
         if template_chart_hint == "funnel" and len(data) >= 2:

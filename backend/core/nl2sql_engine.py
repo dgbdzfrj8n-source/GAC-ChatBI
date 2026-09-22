@@ -638,7 +638,14 @@ class Nl2SqlEngine:
             if insight:
                 insight = self._render_insight_template(insight, exec_res, query)
             if not insight:
-                insight = f"本次查询共获得 {exec_res['row_count']} 条业务记录，数据已成功经过集团统一口径校验。"
+                # [P2 修复] 根据行数给不同文案，避免套话
+                row_count = exec_res['row_count']
+                if row_count == 0:
+                    insight = "📭 当前查询条件在数仓中未匹配到数据，请尝试调整查询条件或参考 15 条快捷提问。"
+                elif row_count == 1:
+                    insight = "✓ 已返回唯一匹配记录，请查看左侧数据卡片。"
+                else:
+                    insight = f"✓ 已返回 {row_count} 条记录，数据按当前维度自动聚合排序。"
 
             # [Sprint 10] 应用行级权限过滤 + 字段级脱敏
             if current_user:
