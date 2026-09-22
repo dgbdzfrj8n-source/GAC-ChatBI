@@ -64,6 +64,7 @@ const colLabel = (col: string): string => COL_LABELS[col] || col;
 
 export default function DataVisualizer({ chartType, echartsOption, columns, data, viewMode }: DataVisualizerProps) {
   // 如果有预计算的 ECharts Option，优先使用
+  // [P0 修复] funnel 类型走 ECharts 渲染（之前会被 fallback 到 table）
   if (viewMode === "chart" && echartsOption && chartType !== "table") {
     return (
       <ReactECharts

@@ -730,6 +730,23 @@ async def chat_stream(req: ChatQueryRequest, user: CurrentUser = Depends(get_cur
             }
             yield f"event: data\ndata: {json.dumps(data_payload, ensure_ascii=False)}\n\n"
 
+            # [P0 修复] 0 行结果特殊处理：给出友好提示，避免静默失败
+            if result.get("is_empty_result"):
+                empty_msg = (
+                    "📭 当前查询条件在数仓中无匹配数据。\n\n"
+                    "可能原因：\n"
+                    "• 业务维度/粒度不在数仓支持范围（如颜色、城市、个体客户、竞品数据）\n"
+                    "• 时间范围超出数仓覆盖（当前数仓覆盖 2024-01 至 2025-04）\n\n"
+                    "💡 **可分析维度**：品牌 / 车型 / 大区 / 月份\n"
+                    "📌 点击下方 15 条快捷提问，每条都能精准返回图表与数据"
+                )
+                for chunk in [empty_msg[i:i+40] for i in range(0, len(empty_msg), 40)]:
+                    yield f"event: insight\ndata: {json.dumps({'text': chunk}, ensure_ascii=False)}\n\n"
+                    await asyncio.sleep(0.03)
+                yield f"event: empty\ndata: {json.dumps({'reason': 'no_matching_data', 'query': req.query}, ensure_ascii=False)}\n\n"
+                yield f"event: done\ndata: {json.dumps({'success': True, 'healed': False, 'engine': result.get('engine', 'DuckDB'), 'empty': True}, ensure_ascii=False)}\n\n"
+                return
+
             # Step 6: 推送图表配置
             chart_info = chart_recommender.recommend(
                 query=req.query,

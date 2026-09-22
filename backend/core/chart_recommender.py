@@ -33,6 +33,11 @@ class ChartRecommender:
         if len(data) == 1:
             return {"chart_type": "table", "echarts_option": None}
 
+        # ── [P0 修复] 漏斗图识别 ──
+        # 触发条件：query 包含"漏斗" 或 行数=3 且列名为 阶段 + 人数
+        if self._is_funnel(query, columns, data):
+            return self._build_funnel_chart(query, columns[0], columns[1] if len(columns) > 1 else "value", data)
+
         # 区分维度列 (String/Date) 与 指标数值列 (Number)
         dim_cols = []
         metric_cols = []
@@ -185,6 +190,47 @@ class ChartRecommender:
             ]
         }
         return {"chart_type": "dual_axis", "echarts_option": option}
+
+    # ── [P0 修复] 漏斗图识别 & 构建 ──
+    def _is_funnel(self, query: str, columns: List[str], data: List[Dict[str, Any]]) -> bool:
+        """识别漏斗图：query 含"漏斗" 或 行数=3 且首列是阶段标签"""
+        if any(kw in query for kw in ["漏斗", "funnel"]):
+            return True
+        if len(data) == 3 and len(columns) >= 2:
+            first_col_vals = [str(r.get(columns[0], "")) for r in data]
+            funnel_stage_keywords = ["进店", "试驾", "成交", "留资", "到店", "下单", "支付", "复购"]
+            return any(any(kw in v for kw in funnel_stage_keywords) for v in first_col_vals)
+        return False
+
+    def _build_funnel_chart(self, title: str, name_col: str, val_col: str, data: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """构建 ECharts 漏斗图"""
+        funnel_data = [
+            {"name": str(r.get(name_col, "")), "value": r.get(val_col, 0)}
+            for r in data
+        ]
+        option = {
+            "title": {"text": title, "textStyle": {"fontSize": 14, "fontWeight": "normal", "color": "#1F2937"}},
+            "tooltip": {"trigger": "item", "formatter": "{b}: {c} ({d}%)"},
+            "legend": {"top": "bottom", "data": [d["name"] for d in funnel_data]},
+            "color": GAC_PALETTE,
+            "series": [
+                {
+                    "name": title,
+                    "type": "funnel",
+                    "left": "10%",
+                    "top": "10%",
+                    "bottom": "10%",
+                    "width": "80%",
+                    "sort": "descending",
+                    "gap": 2,
+                    "label": {"show": True, "position": "inside", "formatter": "{b}\n{c}"},
+                    "labelLine": {"show": False},
+                    "itemStyle": {"borderColor": "#fff", "borderWidth": 1},
+                    "data": funnel_data,
+                }
+            ],
+        }
+        return {"chart_type": "funnel", "echarts_option": option}
 
 if __name__ == "__main__":
     recommender = ChartRecommender()

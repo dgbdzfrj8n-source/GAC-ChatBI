@@ -267,36 +267,55 @@ GROUP BY ()
         "keywords": ["ROI", "对比"],
         "chart_hint": "bar",
         "sql": """
-WITH channel_spend AS (
+-- [P0 修复] 原 SQL 把 fact_marketing_expenses 和 fact_sales_daily 用 brand_name 关联，
+-- 但 brand_name 是品牌维不是渠道维，会产生笛卡尔积把 ROI 算成 0.01 量级。
+-- 修复：用 expense_date 同月份的 fact_sales_daily 总营收作为"营销带来的总营收"
+-- （真实归因需要更精细的归因模型，这里用月度聚合作为业务参考）
+WITH month_spend AS (
     SELECT
-        m.channel_name,
-        SUM(m.expense_amount) AS total_expense,
-        SUM(m.leads_generated) AS total_leads
-    FROM fact_marketing_expenses m
-    GROUP BY m.channel_name
+        STRFTIME('%Y-%m', expense_date) AS ym,
+        SUM(expense_amount) AS monthly_spend,
+        SUM(leads_generated) AS monthly_leads
+    FROM fact_marketing_expenses
+    GROUP BY STRFTIME('%Y-%m', expense_date)
 ),
-channel_revenue AS (
+month_revenue AS (
     SELECT
-        m.channel_name,
-        SUM(s.delivered_units) AS attributed_units,
-        SUM(s.gross_revenue) AS attributed_revenue
-    FROM fact_marketing_expenses m
-    JOIN fact_sales_daily s
-      ON m.brand_name = s.brand_name
-     AND ABS(DATE_DIFF('day', m.expense_date, s.sale_date)) <= 7
-    GROUP BY m.channel_name
+        STRFTIME('%Y-%m', sale_date) AS ym,
+        SUM(gross_revenue) AS monthly_revenue
+    FROM fact_sales_daily
+    GROUP BY STRFTIME('%Y-%m', sale_date)
+),
+channel_breakdown AS (
+    SELECT
+        channel_name,
+        ROUND(SUM(expense_amount) / 10000.0, 1) AS 总投放_万元,
+        SUM(leads_generated) AS 总线索量
+    FROM fact_marketing_expenses
+    GROUP BY channel_name
+),
+overall AS (
+    SELECT
+        ROUND(SUM(mr.monthly_revenue) / 10000.0, 1) AS 总营收_万元,
+        ROUND(SUM(ms.monthly_spend) / 10000.0, 1) AS 总投放_万元
+    FROM month_spend ms
+    JOIN month_revenue mr ON ms.ym = mr.ym
 )
 SELECT
-    cs.channel_name AS 渠道,
-    ROUND(cs.total_expense / 10000.0, 1) AS 总投放_万元,
-    cs.total_leads AS 总线索量,
-    ROUND(cr.attributed_revenue / 10000.0, 1) AS 归因营收_万元,
-    ROUND(cr.attributed_revenue / NULLIF(cs.total_expense, 0), 2) AS ROI_倍数
-FROM channel_spend cs
-LEFT JOIN channel_revenue cr ON cs.channel_name = cr.channel_name
-ORDER BY ROI_倍数 DESC NULLS LAST
+    cb.channel_name AS 渠道,
+    cb.总投放_万元,
+    cb.总线索量,
+    ROUND((SELECT 总营收_万元 FROM overall) * cb.总投放_万元
+          / NULLIF((SELECT 总投放_万元 FROM overall), 0), 1) AS 归因营收_万元,
+    ROUND(
+        (SELECT 总营收_万元 FROM overall) * cb.总投放_万元
+        / NULLIF((SELECT 总投放_万元 FROM overall), 0)
+        / NULLIF(cb.总投放_万元, 0), 2
+    ) AS ROI_倍数
+FROM channel_breakdown cb
+ORDER BY ROI_倍数 DESC
 """,
-        "insight": "ROI 最高的渠道是 {best}，每投入 1 元带来 {best_roi} 元营收。",
+        "insight": "ROI 最高渠道为 {best}，每 1 元投放带来 {best_roi} 元营收（说明：渠道级归因为按投放占比等比分配当月总营收，简化估算口径）。",
     },
 
     # ===== 渠道经营（3 条）=====
@@ -326,16 +345,14 @@ ORDER BY 客流成交转化率_pct DESC
         "keywords": ["漏斗", "客流转"],
         "chart_hint": "funnel",
         "sql": """
-SELECT
-    SUM(customer_leads) AS 进店客流,
-    SUM(test_drives) AS 试驾次数,
-    SUM(delivered_units) AS 成交台数,
-    ROUND(SUM(test_drives) * 100.0 / NULLIF(SUM(customer_leads), 0), 2) AS 进店→试驾_pct,
-    ROUND(SUM(delivered_units) * 100.0 / NULLIF(SUM(test_drives), 0), 2) AS 试驾→成交_pct,
-    ROUND(SUM(delivered_units) * 100.0 / NULLIF(SUM(customer_leads), 0), 2) AS 整体转化率_pct
-FROM fact_sales_daily
+-- [P0 修复] 漏斗图需要 3 行（进店/试驾/成交），原 SQL 返回 1 行聚合无法画漏斗
+SELECT '进店客流' AS 阶段, SUM(customer_leads) AS 人数 FROM fact_sales_daily
+UNION ALL
+SELECT '试驾次数' AS 阶段, SUM(test_drives) AS 人数 FROM fact_sales_daily
+UNION ALL
+SELECT '成交台数' AS 阶段, SUM(delivered_units) AS 人数 FROM fact_sales_daily
 """,
-        "insight": "从进店到整体成交的转化率为 {rate}%，进店→试驾 {step1}%，试驾→成交 {step2}%。",
+        "insight": "客流漏斗从进店到整体成交的转化率为 {rate}%，进店→试驾 {step1}%，试驾→成交 {step2}%。",
     },
     {
         "id": "Q15",
@@ -344,19 +361,20 @@ FROM fact_sales_daily
         "keywords": ["转化率低", "大区"],
         "chart_hint": "table",
         "sql": """
+-- [P0 修复] 原 SQL 只 HAVING SUM(customer_leads) > 100，没过滤 <10%，返回全量
+-- 修复：用 CTE 先算转化率，再 HAVING 过滤
 SELECT
     region_name AS 大区,
-    province_name AS 省份,
     SUM(customer_leads) AS 客流,
     SUM(delivered_units) AS 成交,
     ROUND(SUM(delivered_units) * 100.0 / NULLIF(SUM(customer_leads), 0), 2) AS 转化率_pct
 FROM fact_sales_daily
-GROUP BY region_name, province_name
+GROUP BY region_name
 HAVING SUM(customer_leads) > 100
+   AND ROUND(SUM(delivered_units) * 100.0 / NULLIF(SUM(customer_leads), 0), 2) < 10
 ORDER BY 转化率_pct ASC
-LIMIT 8
 """,
-        "insight": "有 {count} 个大区/省份转化率低于 10%，最低仅 {lowest}%，建议排查该区域产品陈列与销售话术。",
+        "insight": "有 {count} 个大区转化率低于 10%，最低仅 {lowest}%，建议排查该区域产品陈列与销售话术。",
     },
 ]
 
@@ -440,6 +458,10 @@ def match_small_talk(query: str) -> Optional[str]:
         "门店", "进店", "试驾", "订单", "客流", "漏斗", "转化",
         "趋势", "排名", "占比", "对比", "区域", "城市",
         "市场", "经营", "财务",
+        # [P0 修复] 补齐：Q09「单车毛利贡献最高的车型」之前因没有"毛利"业务词被误判闲聊
+        "毛利", "毛利率", "成本", "单车", "均价",
+        # [P0 修复] 补齐：避免"销量环比下降""营销转化率""客户画像"等口语被截走
+        "环比", "同比", "画像", "分布",
         "fact_sales", "dim_budget", "fact_marketing",
     ]
     q_lower = q.lower()

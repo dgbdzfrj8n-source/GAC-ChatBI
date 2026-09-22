@@ -525,7 +525,7 @@ class Nl2SqlEngine:
                 "is_meta_answer": True,
             }
 
-        # 1. 语义剪枝
+        # 1. 语义剪枝（为 LLM 路径准备 schema）
         link_res = self.schema_linker.link(query)
         thought_steps = list(link_res["thought_steps"])
         pruned_schema = link_res["pruned_schema_text"]
@@ -535,8 +535,19 @@ class Nl2SqlEngine:
         insight = None
         is_mock = False
 
-        # 2. 尝试匹配 Mock 录像（若显式指定或无 API 密钥）
-        if force_mock or not self.api_key:
+        # ── [P0 修复] 精确模板匹配优先级最高，不依赖 force_mock ──
+        # 原因：15 条快捷提问已全部在 DuckDB 验证，生产全走 LLM 会导致
+        #       Q09 误判闲聊、Q12 ROI 错、Q15 缺过滤；改为：有 API key 时
+        #       也优先走模板，模板无命中才走 LLM。
+        tmpl = match_query_template(query)
+        if tmpl:
+            raw_sql = tmpl["sql"]
+            insight = tmpl["insight"]
+            is_mock = False
+            thought_steps.append("已命中 15 条精确问数模板，跳过 LLM 直接执行验证 SQL")
+
+        # 2. 兼容旧 Mock 兜底（仅在 force_mock=true 或无 API key 时触发）
+        elif force_mock or not self.api_key:
             mock_hit = self._match_mock_knowledge(query)
             if mock_hit:
                 thought_steps.append("已命中车企高频离线经营知识，以 0-Latency 模式秒级响应")
@@ -544,7 +555,7 @@ class Nl2SqlEngine:
                 insight = mock_hit["insight"]
                 is_mock = True
 
-        # 3. 若无 Mock 命中，则拼装 Prompt 调用 LLM
+        # 3. 若模板和 Mock 都无命中，则拼装 Prompt 调用 LLM
         if not raw_sql:
             thought_steps.append("正在调度大模型理解业务意图并生成标准 SQL...")
             prompt = build_nl2sql_prompt(query, pruned_schema, metric_rules)
@@ -648,6 +659,7 @@ class Nl2SqlEngine:
             "healed": healed,
             "engine": self.sql_executor.engine_type,
             "permission": perm_info if current_user and exec_res["success"] else None,
+            "is_empty_result": exec_res["success"] and (not exec_res["data"] or len(exec_res["data"]) == 0),
         }
 
 if __name__ == "__main__":
