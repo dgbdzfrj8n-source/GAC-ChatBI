@@ -37,6 +37,11 @@ class ChartRecommender:
             metric_col = columns[-1]
             return {"chart_type": "single_kpi", "echarts_option": None, "metric_col": metric_col}
 
+        # 单条 + pie hint 也降级到 single_kpi（pie 需要 ≥2 个扇形才有意义）
+        if len(data) == 1 and template_chart_hint == "pie":
+            metric_col = columns[-1]
+            return {"chart_type": "single_kpi", "echarts_option": None, "metric_col": metric_col}
+
         # ── [P1 修复] funnel 模板 hint 优先：Q14 漏斗等场景 ──
         if template_chart_hint == "funnel" and len(data) >= 2:
             name_col = columns[0]

@@ -605,6 +605,9 @@ class Nl2SqlEngine:
 
             if llm_reply:
                 raw_sql = self._extract_sql(llm_reply)
+                # [P2 修复] LLM 路径也要给默认 insight，避免后续 fallback 到"查询完成..."套话
+                if not insight:
+                    insight = f"✓ 已返回按当前查询条件聚合的数据。"
             else:
                 # 兜底 Mock 案例
                 thought_steps.append("API 未配置或网络不通，平滑降级至广汽经营基准案例")
