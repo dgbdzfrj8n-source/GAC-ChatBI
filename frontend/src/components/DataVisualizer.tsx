@@ -1,13 +1,6 @@
 "use client";
 
-import dynamic from "next/dynamic";
-
-// 动态导入 ECharts 组件（SSR 水合保护）
-const ReactECharts = dynamic(() => import("echarts-for-react"), { ssr: false });
-
-// [DIAG] 诊断开关：localStorage.setItem("gac_debug","1") 开启
-const isDebug = () =>
-  typeof window !== "undefined" && localStorage.getItem("gac_debug") === "1";
+import { useEffect, useRef, useState } from "react";
 
 interface DataVisualizerProps {
   chartType?: string;
@@ -15,6 +8,102 @@ interface DataVisualizerProps {
   columns: string[];
   data: Record<string, unknown>[];
   viewMode: "chart" | "table";
+}
+
+// [FIX] CDN 加载 ECharts（绕开 static export 下 dynamic chunk 不生成的 bug）
+// 原因：next.config.mjs 设了 output:"export"（Netlify 部署），
+// dynamic(() => import("echarts-for-react"), {ssr:false}) 在静态导出时
+// 不会把 echarts-for-react 打成分离 chunk，导致浏览器永远拿不到 ReactECharts。
+// 改用 CDN 引入 echarts 本体，用 ref + echarts.init 直接渲染图表。
+const ECHARTS_CDN = "https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js";
+
+function loadEchartsFromCDN(): Promise<any> {
+  return new Promise((resolve, reject) => {
+    // 已被加载过（window.echarts）
+    const w = window as any;
+    if (w.echarts) {
+      resolve(w.echarts);
+      return;
+    }
+    // 已存在 script 节点（并发请求去重）
+    const existing = document.querySelector(`script[src="${ECHARTS_CDN}"]`);
+    if (existing) {
+      existing.addEventListener("load", () => resolve((window as any).echarts));
+      existing.addEventListener("error", reject);
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = ECHARTS_CDN;
+    script.async = true;
+    script.onload = () => resolve((window as any).echarts);
+    script.onerror = reject;
+    document.head.appendChild(script);
+  });
+}
+
+function EChartsCanvas({ option }: { option: Record<string, unknown> }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const instanceRef = useRef<any>(null);
+  const [loadStatus, setLoadStatus] = useState<"loading" | "ready" | "error">("loading");
+
+  useEffect(() => {
+    let mounted = true;
+    loadEchartsFromCDN()
+      .then((echarts) => {
+        if (!mounted) return;
+        if (!ref.current) return;
+        instanceRef.current = echarts.init(ref.current, undefined, { renderer: "canvas" });
+        instanceRef.current.setOption(option, true);
+        setLoadStatus("ready");
+      })
+      .catch((err) => {
+        // eslint-disable-next-line no-console
+        console.error("[ECharts] CDN load failed:", err);
+        setLoadStatus("error");
+      });
+    return () => {
+      mounted = false;
+      if (instanceRef.current) {
+        instanceRef.current.dispose();
+        instanceRef.current = null;
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // option 变化时更新
+  useEffect(() => {
+    if (instanceRef.current) {
+      instanceRef.current.setOption(option, true);
+    }
+  }, [option]);
+
+  // 容器尺寸自适应
+  useEffect(() => {
+    if (!ref.current || !instanceRef.current) return;
+    const ro = new ResizeObserver(() => instanceRef.current?.resize());
+    ro.observe(ref.current);
+    return () => ro.disconnect();
+  }, [loadStatus]);
+
+  if (loadStatus === "error") {
+    return (
+      <div className="text-sm text-red-500 p-4 border border-red-200 rounded">
+        ⚠️ 图表加载失败：ECharts CDN 不可用
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative">
+      <div ref={ref} style={{ height: "320px", width: "100%" }} />
+      {loadStatus === "loading" && (
+        <div className="absolute inset-0 flex items-center justify-center text-sm text-gray-400 bg-white/60">
+          📊 图表加载中...
+        </div>
+      )}
+    </div>
+  );
 }
 
 // 格式化数值显示
@@ -79,48 +168,9 @@ const COL_LABELS: Record<string, string> = {
 const colLabel = (col: string): string => COL_LABELS[col] || col;
 
 export default function DataVisualizer({ chartType, echartsOption, columns, data, viewMode }: DataVisualizerProps) {
-  // [DIAG] 渲染时输出诊断日志（仅 gac_debug 开启）
-  if (isDebug()) {
-    // eslint-disable-next-line no-console
-    console.log("[GAC-DIAG DataVisualizer]", {
-      viewMode,
-      hasEchartsOption: !!echartsOption,
-      chartType,
-      optionKeys: echartsOption ? Object.keys(echartsOption) : null,
-      seriesCount: (echartsOption as any)?.series?.length ?? 0,
-      cols: columns.length,
-      rows: data.length,
-    });
-  }
-
-  // 如果有预计算的 ECharts Option，优先使用
-  // [P0 修复] funnel 类型走 ECharts 渲染（之前会被 fallback 到 table）
+  // [FIX] funnel 类型走 ECharts 渲染（之前会被 fallback 到 table）
   if (viewMode === "chart" && echartsOption && chartType !== "table") {
-    return (
-      <>
-        <ReactECharts
-          option={echartsOption}
-          style={{ height: "320px", width: "100%" }}
-          opts={{ renderer: "canvas" }}
-          notMerge={true}
-          onChartReady={() =>
-            isDebug() && console.log("[GAC-DIAG] ECharts onChartReady fired")
-          }
-          onChartFinished={() =>
-            isDebug() && console.log("[GAC-DIAG] ECharts onChartFinished fired")
-          }
-        />
-        {/* [DIAG] 调试条：仅 gac_debug 开启时显示 */}
-        {isDebug() && (
-          <div className="mt-2 p-2 border border-amber-300 bg-amber-50 rounded text-xs font-mono text-amber-900">
-            <div>🐞 DEBUG · viewMode=<b>{viewMode}</b> · chartType=<b>{chartType}</b></div>
-            <div>option keys: {echartsOption ? Object.keys(echartsOption).join(", ") : "null"}</div>
-            <div>series count: {(echartsOption as any)?.series?.length ?? 0}</div>
-            <div>data rows: {data.length} · cols: {columns.length}</div>
-          </div>
-        )}
-      </>
-    );
+    return <EChartsCanvas option={echartsOption} />;
   }
 
   // 表格视图

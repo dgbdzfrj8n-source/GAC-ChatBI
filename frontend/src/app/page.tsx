@@ -382,14 +382,6 @@ export default function ChatPage() {
           onChart: ({ chart_type, echarts_option }) => {
             accumulated.chart_type = chart_type;
             accumulated.echarts_option = echarts_option;
-            // [DIAG] 仅 gac_debug 开启
-            if (typeof window !== "undefined" && localStorage.getItem("gac_debug") === "1") {
-              console.log("[GAC-DIAG onChart]", {
-                chart_type,
-                hasOption: !!echarts_option,
-                series: (echarts_option as any)?.series?.length ?? 0,
-              });
-            }
             setMessages((prev) =>
               prev.map((m) =>
                 m.id === assistantId
