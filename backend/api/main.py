@@ -731,6 +731,24 @@ async def chat_stream(req: ChatQueryRequest, user: CurrentUser = Depends(get_cur
             }
             yield f"event: data\ndata: {json.dumps(data_payload, ensure_ascii=False)}\n\n"
 
+            # [P2 修复] SQL 执行失败：给用户明确错误反馈，避免静默成功假象
+            if not result.get("success", False):
+                err = result.get("error") or "查询执行失败"
+                err_msg = (
+                    f"⚠️ 查询未能成功执行。\n\n"
+                    f"**错误信息**：{err[:200]}\n\n"
+                    f"💡 **可能原因**：\n"
+                    f"• 提问中的业务指标/维度不在数仓支持范围\n"
+                    f"• 时间范围超出数仓覆盖（2024-01 至 2025-04）\n"
+                    f"• SQL 语法/口径异常已尝试自愈修复，但仍未成功\n\n"
+                    f"📌 建议改用下方 15 条快捷提问，每条都经过 DuckDB 实测。"
+                )
+                for chunk in [err_msg[i:i+40] for i in range(0, len(err_msg), 40)]:
+                    yield f"event: insight\ndata: {json.dumps({'text': chunk}, ensure_ascii=False)}\n\n"
+                    await asyncio.sleep(0.03)
+                yield f"event: done\ndata: {json.dumps({'success': False, 'healed': result.get('healed', False), 'engine': result.get('engine', 'DuckDB'), 'error': err}, ensure_ascii=False)}\n\n"
+                return
+
             # [P0 修复] 0 行结果特殊处理：给出友好提示，避免静默失败
             if result.get("is_empty_result"):
                 empty_msg = (
@@ -789,9 +807,11 @@ async def chat_stream(req: ChatQueryRequest, user: CurrentUser = Depends(get_cur
 
             # Step 8: 完成事件
             done_payload = {
-                "success": True,
+                "success": result.get("success", False),
                 "healed": result.get("healed", False),
-                "engine": result.get("engine", "DuckDB")
+                "engine": result.get("engine", "DuckDB"),
+                "error": result.get("error"),
+                "empty": result.get("is_empty_result", False),
             }
             yield f"event: done\ndata: {json.dumps(done_payload, ensure_ascii=False)}\n\n"
 
