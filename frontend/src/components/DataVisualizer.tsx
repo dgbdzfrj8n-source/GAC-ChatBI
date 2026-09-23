@@ -5,6 +5,10 @@ import dynamic from "next/dynamic";
 // 动态导入 ECharts 组件（SSR 水合保护）
 const ReactECharts = dynamic(() => import("echarts-for-react"), { ssr: false });
 
+// [DIAG] 诊断开关：localStorage.setItem("gac_debug","1") 开启
+const isDebug = () =>
+  typeof window !== "undefined" && localStorage.getItem("gac_debug") === "1";
+
 interface DataVisualizerProps {
   chartType?: string;
   echartsOption?: Record<string, unknown>;
@@ -75,16 +79,47 @@ const COL_LABELS: Record<string, string> = {
 const colLabel = (col: string): string => COL_LABELS[col] || col;
 
 export default function DataVisualizer({ chartType, echartsOption, columns, data, viewMode }: DataVisualizerProps) {
+  // [DIAG] 渲染时输出诊断日志（仅 gac_debug 开启）
+  if (isDebug()) {
+    // eslint-disable-next-line no-console
+    console.log("[GAC-DIAG DataVisualizer]", {
+      viewMode,
+      hasEchartsOption: !!echartsOption,
+      chartType,
+      optionKeys: echartsOption ? Object.keys(echartsOption) : null,
+      seriesCount: (echartsOption as any)?.series?.length ?? 0,
+      cols: columns.length,
+      rows: data.length,
+    });
+  }
+
   // 如果有预计算的 ECharts Option，优先使用
   // [P0 修复] funnel 类型走 ECharts 渲染（之前会被 fallback 到 table）
   if (viewMode === "chart" && echartsOption && chartType !== "table") {
     return (
-      <ReactECharts
-        option={echartsOption}
-        style={{ height: "320px", width: "100%" }}
-        opts={{ renderer: "canvas" }}
-        notMerge={true}
-      />
+      <>
+        <ReactECharts
+          option={echartsOption}
+          style={{ height: "320px", width: "100%" }}
+          opts={{ renderer: "canvas" }}
+          notMerge={true}
+          onChartReady={() =>
+            isDebug() && console.log("[GAC-DIAG] ECharts onChartReady fired")
+          }
+          onChartFinished={() =>
+            isDebug() && console.log("[GAC-DIAG] ECharts onChartFinished fired")
+          }
+        />
+        {/* [DIAG] 调试条：仅 gac_debug 开启时显示 */}
+        {isDebug() && (
+          <div className="mt-2 p-2 border border-amber-300 bg-amber-50 rounded text-xs font-mono text-amber-900">
+            <div>🐞 DEBUG · viewMode=<b>{viewMode}</b> · chartType=<b>{chartType}</b></div>
+            <div>option keys: {echartsOption ? Object.keys(echartsOption).join(", ") : "null"}</div>
+            <div>series count: {(echartsOption as any)?.series?.length ?? 0}</div>
+            <div>data rows: {data.length} · cols: {columns.length}</div>
+          </div>
+        )}
+      </>
     );
   }
 
