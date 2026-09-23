@@ -169,8 +169,24 @@ const colLabel = (col: string): string => COL_LABELS[col] || col;
 
 export default function DataVisualizer({ chartType, echartsOption, columns, data, viewMode }: DataVisualizerProps) {
   // [FIX] funnel 类型走 ECharts 渲染（之前会被 fallback 到 table）
-  if (viewMode === "chart" && echartsOption && chartType !== "table") {
+  if (viewMode === "chart" && echartsOption && chartType !== "table" && chartType !== "single_kpi") {
     return <EChartsCanvas option={echartsOption} />;
+  }
+
+  // [FIX] single_kpi 在 chart 视图下也走 KPI 卡片渲染（不是 ECharts）
+  if (chartType === "single_kpi" && data && data.length === 1) {
+    const row = data[0];
+    const isChartView = viewMode === "chart";
+    return (
+      <div className={`grid grid-cols-${columns.length > 1 ? "2" : "1"} gap-4 py-4 ${isChartView ? "bg-gradient-to-br from-emerald-50/60 via-white to-blue-50/60 -mx-2 px-4 rounded-lg" : ""}`}>
+        {columns.map((col) => (
+          <div key={col} className="bg-gradient-to-br from-emerald-50 to-blue-50 rounded-lg p-5 border border-emerald-100 shadow-sm">
+            <p className="text-xs text-gray-500 mb-1.5 font-medium">{colLabel(col)}</p>
+            <p className="text-3xl font-bold text-emerald-700 tracking-tight">{fmt(row[col], col)}</p>
+          </div>
+        ))}
+      </div>
+    );
   }
 
   // 表格视图
