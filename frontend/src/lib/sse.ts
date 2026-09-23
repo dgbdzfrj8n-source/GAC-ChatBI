@@ -97,6 +97,16 @@ export async function streamChat(
     try {
       detail = await res.text();
     } catch {}
+    // [P2 修复] 401 = token 过期，自动清登录态跳登录页（与 authFetch 行为一致）
+    if (res.status === 401 && typeof window !== "undefined") {
+      try {
+        localStorage.removeItem("gac_chatbi_token");
+        localStorage.removeItem("gac_chatbi_user");
+      } catch {}
+      if (!window.location.pathname.startsWith("/login")) {
+        window.location.href = "/login";
+      }
+    }
     throw new Error(`HTTP ${res.status}${detail ? " · " + detail.slice(0, 120) : ""}`);
   }
 
