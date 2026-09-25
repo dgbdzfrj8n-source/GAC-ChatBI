@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useState } from 'react';
 import GacBadge from '@/components/GacBadge';
 
@@ -107,9 +108,10 @@ export default function ReportsPage() {
       {/* 报表卡片网格 */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         {filtered.map((report) => (
-          <div
+          <Link
             key={report.id}
-            className="content-card p-5 hover:shadow-md hover:border-gac-primary transition-all cursor-pointer"
+            href={`/reports/${report.id}`}
+            className="content-card p-5 hover:shadow-md hover:border-gac-primary transition-all block"
           >
             <div className="flex items-start justify-between mb-3">
               <div className="text-3xl">{report.icon}</div>
@@ -134,11 +136,11 @@ export default function ReportsPage() {
                   </span>
                 ))}
               </div>
-              <button className="text-xs text-gac-primary font-medium hover:underline">
+              <span className="text-xs text-gac-primary font-medium">
                 查看 →
-              </button>
+              </span>
             </div>
-          </div>
+          </Link>
         ))}
       </div>
     </div>

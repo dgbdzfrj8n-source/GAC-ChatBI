@@ -142,6 +142,36 @@ export const pageTitleMap: Record<string, { title: string; subtitle: string; let
     subtitle: '高频场景封装的标准报表模板',
     letter: 'B', // 报
   },
+  '/reports/budget-fulfillment': {
+    title: '预算达成分析',
+    subtitle: '各品牌 / 大区 / 车型预算完成进度 · 自动识别达成率 < 90% 薄弱项',
+    letter: 'Y', // 预
+  },
+  '/reports/sales-attribution': {
+    title: '销量归因分析',
+    subtitle: 'SOP 四步归因引擎 · 渠道 / 大区 / 价格 / 产品 维度定位根因',
+    letter: 'G', // 归
+  },
+  '/reports/channel-roi': {
+    title: '渠道投放 ROI',
+    subtitle: '营销渠道投放金额 / 线索量 / 转化率 / CPL 横向对比',
+    letter: 'Q', // 渠
+  },
+  '/reports/inventory-warning': {
+    title: '库存预警报表',
+    subtitle: '经销商库存周转天数 / 库存系数 / 超期库存车辆明细',
+    letter: 'K', // 库
+  },
+  '/reports/conversion-funnel': {
+    title: '客流转化漏斗',
+    subtitle: '客流 → 留资 → 试驾 → 成交 全链路转化率分析',
+    letter: 'L', // 漏
+  },
+  '/reports/regional-ranking': {
+    title: '大区销售排行',
+    subtitle: '7 大区销售业绩排行 · 同比 / 环比 / 达成率 多维对比',
+    letter: 'D', // 大
+  },
   '/semantic': {
     title: '语义层管理',
     subtitle: '指标层（6）+ 维度层（21）+ 同义词层（9），统一管理 NL2SQL 召回口径',
