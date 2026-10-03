@@ -58,6 +58,7 @@ def build(month: str) -> ReportPayload:
     latest_date = str(latest_rows[0]["latest_date"])[:10]  # YYYY-MM-DD
 
     # 经销商级库存系数
+    # 注意：fact_sales_daily 没有 dealer_name 字段，按 region+brand 维度 JOIN。
     dealer_sql = f"""
     WITH inv AS (
         SELECT dealer_name, brand_name, region_name,
@@ -66,23 +67,47 @@ def build(month: str) -> ReportPayload:
         WHERE snapshot_date = DATE '{latest_date}'
         GROUP BY dealer_name, brand_name, region_name
     ),
-    sales AS (
-        SELECT dealer_name, SUM(delivered_units) AS recent_30d
+    region_sales AS (
+        SELECT region_name, brand_name,
+               SUM(delivered_units) AS region_30d
         FROM fact_sales_daily
         WHERE sale_date >= DATE '{latest_date}' - INTERVAL '30 days'
           AND sale_date <= DATE '{latest_date}'
-        GROUP BY dealer_name
+        GROUP BY region_name, brand_name
+    ),
+    dealer_cnt AS (
+        SELECT region_name, brand_name, COUNT(*) AS n_dealers
+        FROM inv
+        GROUP BY region_name, brand_name
     )
     SELECT
         inv.dealer_name, inv.brand_name, inv.region_name,
         inv.inventory_units,
-        COALESCE(sales.recent_30d, 0) AS recent_30d,
-        ROUND(inv.inventory_units * 30.0 /
-              NULLIF(sales.recent_30d, 0), 1) AS turnover_days,
-        ROUND(inv.inventory_units * 1.0 /
-              NULLIF(sales.recent_30d, 0), 2) AS coefficient
+        COALESCE(
+            REGION_SALES.region_30d * 1.0 / NULLIF(dealer_cnt.n_dealers, 0),
+            0
+        ) AS recent_30d,
+        ROUND(
+            inv.inventory_units * 30.0 /
+            NULLIF(
+                REGION_SALES.region_30d * 1.0 / NULLIF(dealer_cnt.n_dealers, 0),
+                0
+            ), 1
+        ) AS turnover_days,
+        ROUND(
+            inv.inventory_units * 1.0 /
+            NULLIF(
+                REGION_SALES.region_30d * 1.0 / NULLIF(dealer_cnt.n_dealers, 0),
+                0
+            ), 2
+        ) AS coefficient
     FROM inv
-    LEFT JOIN sales ON inv.dealer_name = sales.dealer_name
+    LEFT JOIN REGION_SALES
+        ON inv.region_name = REGION_SALES.region_name
+        AND inv.brand_name = REGION_SALES.brand_name
+    LEFT JOIN dealer_cnt
+        ON inv.region_name = dealer_cnt.region_name
+        AND inv.brand_name = dealer_cnt.brand_name
     ORDER BY coefficient DESC
     """
     dealer_rows = _safe_query(dealer_sql)
