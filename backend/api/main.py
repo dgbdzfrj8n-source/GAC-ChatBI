@@ -58,6 +58,12 @@ from api.schemas import (
 from core.nl2sql_engine import Nl2SqlEngine
 from core.chart_recommender import ChartRecommender
 from core.sop_analyzer import SopAnalyzer
+from core.report_executor import report_executor, list_registry
+from api.schemas import (
+    ReportRegistryResponse,
+    ReportRegistryItem,
+    ReportPayload,
+)
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 BACKEND_DIR = os.path.dirname(CURRENT_DIR)
@@ -110,6 +116,8 @@ def root():
             "/api/feedback",
             "/api/sop/analyze",
             "/api/dashboard/snapshot",
+            "/api/reports/registry",
+            "/api/reports/{report_id}",
             "/docs"
         ]
     }
@@ -132,6 +140,43 @@ def debug_llm():
     import os as _os
     from core.nl2sql_engine import HAS_OPENAI_SDK, _call_llm_direct
     return _call_llm_direct()
+
+
+# ============================================================
+# [Sprint 8] 报表中心 (Reports Center) — 6 张独立报表
+# ============================================================
+@app.get(
+    "/api/reports/registry",
+    response_model=ReportRegistryResponse,
+    tags=["报表中心"],
+)
+def get_reports_registry():
+    """报表中心元数据清单（前端 /reports 列表渲染用）"""
+    return ReportRegistryResponse(
+        items=[ReportRegistryItem(**item) for item in list_registry()]
+    )
+
+
+@app.get(
+    "/api/reports/{report_id}",
+    response_model=ReportPayload,
+    tags=["报表中心"],
+)
+def get_report_payload(report_id: str, month: str = "2025-03"):
+    """
+    获取单张报表的完整 payload。
+    - 真实 SQL 路径：返回 is_mocked=False；
+    - SQL 失败自动降级：返回 is_mocked=True 的 Mock 数据；
+    - 任何 2 张报表不复用 SQL。
+    """
+    if not month or len(month) != 7:
+        raise HTTPException(
+            status_code=400, detail="month 参数必须是 YYYY-MM 格式"
+        )
+    try:
+        return report_executor.execute(report_id, month)
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
 
 @app.get("/api/metrics", response_model=MetricListResponse, tags=["指标资产"])

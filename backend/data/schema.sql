@@ -35,3 +35,33 @@ CREATE TABLE IF NOT EXISTS fact_marketing_expenses (
     expense_amount DOUBLE,             -- 实际支出金额（元）
     leads_generated INTEGER            -- 投放带来的集客线索总量（条）
 );
+
+-- 4. 经销商库存事实表（日/经销商/车型粒度）— Sprint 8 报表中心新增
+CREATE TABLE IF NOT EXISTS fact_dealer_inventory_daily (
+    snapshot_date DATE,                -- 库存快照日期
+    dealer_name VARCHAR,               -- 经销商名称：广州埃安珠江新城店、长沙传祺麓谷店 等
+    brand_name VARCHAR,                -- 所属品牌
+    region_name VARCHAR,               -- 所属大区
+    model_name VARCHAR,                -- 车型
+    inventory_units INTEGER,           -- 期末库存台数
+    days_in_stock INTEGER              -- 平均库龄（天），0 表示当月新车
+);
+
+-- 5. 客流转化漏斗事件表（事实表）— Sprint 8 报表中心新增
+-- 用事件流而非聚合表，便于灵活切维度（车型/大区/渠道）。
+CREATE TABLE IF NOT EXISTS fact_funnel_event (
+    event_date DATE,                   -- 事件日期
+    event_stage VARCHAR,               -- 事件阶段：store_visit / lead_created / test_drive / order_created
+    brand_name VARCHAR,                -- 品牌
+    region_name VARCHAR,               -- 大区
+    dealer_name VARCHAR,               -- 所属门店
+    session_id VARCHAR                 -- 会话编号，用于跨阶段串联同一客流
+);
+
+-- 6. 经销商主数据维度表
+CREATE TABLE IF NOT EXISTS dim_dealer (
+    dealer_name VARCHAR,
+    brand_name VARCHAR,
+    region_name VARCHAR,
+    dealer_type VARCHAR                -- 直营店 / 经销店 / 商超店
+);

@@ -29,6 +29,8 @@ next-env.d.ts
 *.db
 *.sqlite
 *.sqlite3
+*.bak
+*.bak.*
 backend/data/chroma_db/
 
 # ⚠️ 例外：本项目核心数据 gac_bi.duckdb 必须提交（Render 无文件系统持久化）

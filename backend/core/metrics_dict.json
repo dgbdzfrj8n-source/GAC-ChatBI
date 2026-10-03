@@ -63,6 +63,50 @@
       "calculation_rule": "ROUND(SUM(delivered_units) * 100.0 / NULLIF(SUM(customer_leads), 0), 2)",
       "required_tables": ["fact_sales_daily"],
       "example_query": "SELECT region_name, ROUND(SUM(delivered_units) * 100.0 / NULLIF(SUM(customer_leads), 0), 2) AS conversion_rate FROM fact_sales_daily GROUP BY region_name ORDER BY conversion_rate DESC"
+    },
+    {
+      "metric_id": "M07",
+      "metric_name": "渠道投放 ROI",
+      "business_domain": "市场营销",
+      "definition": "特定推广渠道投放支出与所带来交付总营收的比值，评估渠道最终成交贡献的回报率（按品牌 + 月聚合后两表 JOIN）。",
+      "unit": "倍",
+      "calculation_rule": "ROUND(s_agg.total_revenue / NULLIF(m_agg.total_spend, 0), 2)",
+      "required_tables": ["fact_marketing_expenses", "fact_sales_daily"],
+      "join_condition": "m_agg.brand_name = s_agg.brand_name",
+      "example_query": "WITH m_agg AS (SELECT brand_name, SUM(expense_amount) AS total_spend FROM fact_marketing_expenses WHERE STRFTIME('%Y-%m', expense_date) = '2025-03' GROUP BY brand_name), s_agg AS (SELECT brand_name, SUM(gross_revenue) AS total_revenue FROM fact_sales_daily WHERE STRFTIME('%Y-%m', sale_date) = '2025-03' GROUP BY brand_name) SELECT m_agg.brand_name, ROUND(s_agg.total_revenue * 1.0 / NULLIF(m_agg.total_spend, 0), 2) AS channel_roi FROM m_agg JOIN s_agg ON m_agg.brand_name = s_agg.brand_name"
+    },
+    {
+      "metric_id": "M08",
+      "metric_name": "经销商库存周转天数",
+      "business_domain": "库存管理",
+      "definition": "经销商当前库存台数与近 30 天日均交付量的比值，反映库存消化速度。周转天数越高代表滞销风险越大。",
+      "unit": "天",
+      "calculation_rule": "ROUND(latest_inv.inventory_units * 30.0 / NULLIF(sales_agg.recent_30d_units, 0), 1)",
+      "required_tables": ["fact_dealer_inventory_daily", "fact_sales_daily"],
+      "join_condition": "latest_inv.dealer_name = sales_agg.dealer_name",
+      "example_query": "WITH latest_inv AS (SELECT dealer_name, brand_name, region_name, SUM(inventory_units) AS inventory_units FROM fact_dealer_inventory_daily WHERE snapshot_date = (SELECT MAX(snapshot_date) FROM fact_dealer_inventory_daily) GROUP BY dealer_name, brand_name, region_name), sales_agg AS (SELECT dealer_name, SUM(delivered_units) AS recent_30d_units FROM fact_sales_daily WHERE sale_date >= CURRENT_DATE - INTERVAL '30 days' GROUP BY dealer_name) SELECT latest_inv.dealer_name, latest_inv.brand_name, latest_inv.region_name, latest_inv.inventory_units, ROUND(latest_inv.inventory_units * 30.0 / NULLIF(sales_agg.recent_30d_units, 0), 1) AS turnover_days FROM latest_inv LEFT JOIN sales_agg ON latest_inv.dealer_name = sales_agg.dealer_name"
+    },
+    {
+      "metric_id": "M09",
+      "metric_name": "库存系数",
+      "business_domain": "库存管理",
+      "definition": "经销商库存台数与近 30 天实际交付量的比值。> 1.5 视为预警，> 2.5 视为严重滞销。",
+      "unit": "倍",
+      "calculation_rule": "ROUND(latest_inv.inventory_units * 1.0 / NULLIF(sales_agg.recent_30d_units, 0), 2)",
+      "required_tables": ["fact_dealer_inventory_daily", "fact_sales_daily"],
+      "join_condition": "latest_inv.dealer_name = sales_agg.dealer_name",
+      "example_query": "WITH latest_inv AS (SELECT dealer_name, model_name, SUM(inventory_units) AS inventory_units FROM fact_dealer_inventory_daily WHERE snapshot_date = (SELECT MAX(snapshot_date) FROM fact_dealer_inventory_daily) GROUP BY dealer_name, model_name), sales_agg AS (SELECT dealer_name, model_name, SUM(delivered_units) AS recent_30d_units FROM fact_sales_daily WHERE sale_date >= CURRENT_DATE - INTERVAL '30 days' GROUP BY dealer_name, model_name) SELECT latest_inv.dealer_name, latest_inv.model_name, latest_inv.inventory_units, ROUND(latest_inv.inventory_units * 1.0 / NULLIF(sales_agg.recent_30d_units, 0), 2) AS inventory_coefficient FROM latest_inv LEFT JOIN sales_agg ON latest_inv.dealer_name = sales_agg.dealer_name AND latest_inv.model_name = sales_agg.model_name"
+    },
+    {
+      "metric_id": "M10",
+      "metric_name": "漏斗步骤转化率",
+      "business_domain": "渠道经营",
+      "definition": "客流转化漏斗 4 个阶段（进店/留资/试驾/成交）两两之间的转化率，基于事件表去重 session 计数。",
+      "unit": "%",
+      "calculation_rule": "ROUND(stage_n_sessions * 100.0 / NULLIF(stage_prev_sessions, 0), 2)",
+      "required_tables": ["fact_funnel_event"],
+      "join_condition": "通过 STRFTIME 截取年月聚合",
+      "example_query": "WITH stage_counts AS (SELECT STRFTIME('%Y-%m', event_date) AS year_month, event_stage, COUNT(DISTINCT session_id) AS sessions FROM fact_funnel_event WHERE STRFTIME('%Y-%m', event_date) = '2025-03' GROUP BY year_month, event_stage) SELECT year_month, MAX(CASE WHEN event_stage='store_visit' THEN sessions END) AS visits, MAX(CASE WHEN event_stage='lead_created' THEN sessions END) AS leads, MAX(CASE WHEN event_stage='test_drive' THEN sessions END) AS drives, MAX(CASE WHEN event_stage='order_created' THEN sessions END) AS orders FROM stage_counts GROUP BY year_month"
     }
   ]
 }

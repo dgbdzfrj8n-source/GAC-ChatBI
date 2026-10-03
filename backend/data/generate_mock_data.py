@@ -197,6 +197,109 @@ def build_database():
     """, marketing_rows)
     print(f"✔ fact_marketing_expenses 写入完成，共 {len(marketing_rows):,} 条投放流水。")
 
+    # ====== Sprint 8 报表中心：新增 3 张表 ======
+
+    # 4) dim_dealer（经销商主数据）
+    dealer_rows = []
+    dealer_index = {}  # 用于第 5、第 6 张表关联
+    dealer_idx_counter = 1
+    for brand_name in BRAND_MODELS.keys():
+        for region_name, provinces, _weight in REGIONS:
+            # 每个品牌 × 大区放 2~4 家经销商
+            n_dealers = random.randint(2, 4)
+            for k in range(n_dealers):
+                dealer_idx_counter += 1
+                city = random.choice(provinces).replace("壮族自治区", "").replace("市", "")
+                suffix_map = {
+                    "广汽埃安": ["体验中心", "交付中心", "城市展厅", "商超店"],
+                    "广汽传祺": ["旗舰店", "标准店", "卫星店"],
+                    "昊铂": ["昊铂中心", "昊铂空间"],
+                }
+                suffix = random.choice(suffix_map[brand_name])
+                dealer_name = f"{city}{brand_name[-2:]}{suffix}{dealer_idx_counter:03d}"
+                dealer_type = random.choice(["直营店", "经销店", "商超店"])
+                dealer_rows.append((dealer_name, brand_name, region_name, dealer_type))
+                dealer_index.setdefault((region_name, brand_name), []).append(dealer_name)
+
+    cursor.executemany(
+        "INSERT INTO dim_dealer VALUES (?, ?, ?, ?)", dealer_rows
+    )
+    print(f"✔ dim_dealer 写入完成，共 {len(dealer_rows):,} 家经销商。")
+
+    # 5) fact_dealer_inventory_daily（库存快照）
+    inventory_rows = []
+    inventory_size = 25  # 每家店每天覆盖约 25 个车型组合以控制规模
+    for d in range(delta_days):
+        current_date = start_date + datetime.timedelta(days=d)
+        date_str = current_date.strftime("%Y-%m-%d")
+        season = get_season_factor(current_date)
+
+        for (region_name, brand_name), dealers in dealer_index.items():
+            for dealer_name in dealers:
+                for model_name, _min_p, _max_p, _disc in BRAND_MODELS[brand_name]:
+                    if random.random() > 0.55:
+                        continue  # 不是每天都覆盖全车型
+                    # 健康库存 8~25 台，但会故意给部分商家造"超期库存"预警
+                    base_stock = random.randint(8, 25)
+                    if random.random() < 0.18:
+                        base_stock = random.randint(60, 140)  # 滞销
+                    inv = int(base_stock * season * random.uniform(0.85, 1.20))
+                    days_old = random.randint(5, 200) if inv > 40 else random.randint(1, 60)
+                    inventory_rows.append(
+                        (date_str, dealer_name, brand_name, region_name, model_name, inv, days_old)
+                    )
+
+    cursor.executemany(
+        "INSERT INTO fact_dealer_inventory_daily VALUES (?, ?, ?, ?, ?, ?, ?)",
+        inventory_rows,
+    )
+    print(
+        f"✔ fact_dealer_inventory_daily 写入完成，共 {len(inventory_rows):,} 条库存快照。"
+    )
+
+    # 6) fact_funnel_event（漏斗事件）
+    funnel_rows = []
+    stage_weights = [
+        ("store_visit", 1.00),       # 进店率 100%
+        ("lead_created", 0.62),      # 留资率 62%
+        ("test_drive", 0.32),        # 试驾率 32%
+        ("order_created", 0.14),     # 成交率 14%
+    ]
+    session_counter = 1
+    for d in range(delta_days):
+        current_date = start_date + datetime.timedelta(days=d)
+        date_str = current_date.strftime("%Y-%m-%d")
+        season = get_season_factor(current_date)
+
+        for (region_name, brand_name), dealers in dealer_index.items():
+            for dealer_name in dealers:
+                # 当日客流基数（控规模：5~15 / 店 / 日）
+                daily_visits = max(2, int(random.randint(5, 15) * season))
+                # 为每个客流生成最多 4 个事件
+                for _ in range(daily_visits):
+                    session_id = f"S{session_counter:09d}"
+                    session_counter += 1
+                    for stage, weight in stage_weights:
+                        if random.random() > weight:
+                            continue
+                        funnel_rows.append(
+                            (
+                                date_str,
+                                stage,
+                                brand_name,
+                                region_name,
+                                dealer_name,
+                                session_id,
+                            )
+                        )
+                        if stage == "order_created":
+                            break  # 成交后不再叠加后续阶段
+
+    cursor.executemany(
+        "INSERT INTO fact_funnel_event VALUES (?, ?, ?, ?, ?, ?)", funnel_rows
+    )
+    print(f"✔ fact_funnel_event 写入完成，共 {len(funnel_rows):,} 条事件记录。")
+
     con.commit()
     con.close()
     print(f"🎉 广汽数仓生成成功，数据库保存在: {db_file}")

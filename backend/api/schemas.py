@@ -475,3 +475,67 @@ class TemplateAuditListResponse(BaseModel):
     template_id: str
     history: List[TemplateAuditItem]
 
+
+# ─── 报表中心 Sprint 8 ──────────────────────────────────────────
+from typing import Literal
+
+
+class ReportKpi(BaseModel):
+    label: str = Field(..., description="KPI 标签")
+    value: float | int | str = Field(..., description="KPI 数值")
+    unit: str = Field("", description="单位：% / 辆 / 万 / 倍 ...")
+    trend: Optional[Literal["up", "down", "flat"]] = Field(
+        None, description="趋势方向（前端箭头用）"
+    )
+    hint: Optional[str] = Field(None, description="补充说明文案")
+
+
+class ReportChart(BaseModel):
+    chart_type: Literal[
+        "bar", "line", "pie", "scatter", "heatmap",
+        "funnel", "waterfall", "table", "ranking",
+    ] = Field(..., description="ECharts 图表类型")
+    title: str = Field(..., description="图表标题")
+    data: List[Dict[str, Any]] = Field(..., description="图表数据（list of dict）")
+    columns: List[str] = Field(default_factory=list, description="表格/图例列名")
+    x_axis: Optional[str] = None
+    y_axis: Optional[str] = None
+    series: Optional[List[str]] = None
+
+
+class ReportAlert(BaseModel):
+    level: Literal["info", "warning", "alert"] = Field(..., description="预警等级")
+    title: str
+    body: str
+    link: Optional[str] = None
+
+
+class ReportPayload(BaseModel):
+    """单张报表的完整 payload（统一 Schema）"""
+    report_id: str
+    title: str
+    subtitle: str
+    month: str
+    generated_at: str
+    is_mocked: bool = Field(..., description="True 表示当前为 Mock 降级数据")
+    kpis: List[ReportKpi]
+    charts: List[ReportChart]
+    alerts: List[ReportAlert] = Field(default_factory=list)
+
+
+class ReportRegistryItem(BaseModel):
+    """报表清单条目"""
+    report_id: str = Field(..., description="报表 ID，用于路由 /api/reports/{id}")
+    name: str
+    category: str
+    description: str
+    icon: str = Field("📊", description="Emoji 图标")
+    status: Literal["ready", "mocked", "wip"] = Field(
+        ..., description="ready=真实数据；mocked=仅 Mock；wip=开发中"
+    )
+    estimated_sprint: str = Field("Sprint 8.1")
+
+
+class ReportRegistryResponse(BaseModel):
+    items: List[ReportRegistryItem]
+
