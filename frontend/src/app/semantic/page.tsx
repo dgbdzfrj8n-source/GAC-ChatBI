@@ -670,7 +670,15 @@ function PreviewResult({ res }: { res: any }) {
       <div className="text-xs text-gac-gray-500">问句：<span className="text-gac-gray-900 font-medium">{res.query}</span></div>
       {!hasMatch && (
         <div className="text-xs text-amber-700 bg-amber-50 px-3 py-2 rounded">
-          ⚠️ 未命中任何指标或术语。可在下方补充同义词/关联，让召回更准。
+          ⚠️ 未命中任何指标或术语（最低召回分数：{res.min_score ?? 3}）。
+          {res.below_threshold_count > 0 && (
+            <span className="ml-1">
+              还有 <strong>{res.below_threshold_count}</strong> 个边缘命中（分数低于阈值），可在下方补充同义词/关联提升召回。
+            </span>
+          )}
+          {res.below_threshold_count === 0 && (
+            <span className="ml-1">可在下方补充同义词/关联，让召回更准。</span>
+          )}
         </div>
       )}
       {res.matched_metrics?.length > 0 && (
