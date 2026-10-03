@@ -521,6 +521,11 @@ class ReportPayload(BaseModel):
     kpis: List[ReportKpi]
     charts: List[ReportChart]
     alerts: List[ReportAlert] = Field(default_factory=list)
+    # ⭐ Sprint 8 增强：snapshot-driven 报表（如库存预警）返回数据快照日
+    #  当该字段非空时，前端应隐藏月份选择器，改显示「快照日」
+    snapshot_date: Optional[str] = Field(
+        None, description="数据快照日 (YYYY-MM-DD)，仅 snapshot-driven 报表返回"
+    )
 
 
 class ReportRegistryItem(BaseModel):

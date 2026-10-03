@@ -165,6 +165,9 @@ class ReportExecutor:
         raw["month"] = month
         raw["is_mocked"] = True
         raw["generated_at"] = datetime.datetime.now().isoformat()
+        # ⭐ 兜底：若 mock 文件没 snapshot_date，注入 2025-04-30（与生产真值一致）
+        if not raw.get("snapshot_date"):
+            raw["snapshot_date"] = "2025-04-30"
         return ReportPayload(**raw)
 
 

@@ -226,6 +226,7 @@ def build(month: str) -> ReportPayload:
         month=month,
         generated_at=datetime.datetime.now().isoformat(),
         is_mocked=False,
+        snapshot_date=latest_date,  # ⭐ 注入快照日，前端据此隐藏月份选择器
         kpis=kpis,
         charts=[region_chart, detail_chart, top10_chart],
         alerts=alerts,

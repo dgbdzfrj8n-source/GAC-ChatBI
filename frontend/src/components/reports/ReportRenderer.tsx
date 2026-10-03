@@ -16,7 +16,8 @@
 import { useEffect, useState, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
-import { Download, Bell, ArrowUp, ArrowDown, Minus, AlertCircle, AlertTriangle, Info, RefreshCw, ArrowLeft } from 'lucide-react';
+import { Download, Bell, ArrowUp, ArrowDown, Minus, AlertCircle, AlertTriangle, Info, RefreshCw, ArrowLeft, Database } from 'lucide-react';
+import type { ReportMeta } from '@/lib/reportRegistry';
 
 // 通用图表渲染器（内部按 chart_type 切换 ECharts 配置，9 合 1）
 const ReportChartView = dynamic(() => import('@/components/reports/ReportChartView'), { ssr: false });
@@ -62,16 +63,11 @@ interface ReportPayload {
   kpis: ReportKpi[];
   charts: ReportChart[];
   alerts: ReportAlert[];
+  // ⭐ Sprint 8 增强：snapshot-driven 报表的后端返回字段
+  snapshot_date?: string | null;
 }
 
-export interface ReportMeta {
-  report_id: string;
-  name: string;
-  category: string;
-  description: string;
-  icon: string;
-  status: 'ready' | 'mocked' | 'wip';
-}
+// 注：ReportMeta 已在 @/lib/reportRegistry 定义并 import 上来。
 
 interface Props {
   reportMeta: ReportMeta;
@@ -208,15 +204,29 @@ export default function ReportRenderer({ reportMeta, defaultMonth = '2025-03' }:
               </p>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
-              <select
-                value={month}
-                onChange={(e) => setMonth(e.target.value)}
-                className="px-3 py-2 rounded-lg border border-gac-gray-200 text-sm text-gac-gray-700 bg-white hover:border-gac-primary"
-              >
-                {monthOptions.map((m) => (
-                  <option key={m} value={m}>{m}</option>
-                ))}
-              </select>
+              {/* 条件渲染：snapshot-driven 报表隐藏月份选择器，显示快照日徽章 */}
+              {reportMeta.snapshotDriven ? (
+                <div
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-sky-200 bg-sky-50 text-sky-700 text-sm"
+                  title="该报表由最新库存快照日驱动，无法回放历史"
+                >
+                  <Database className="w-4 h-4" />
+                  <span className="font-medium">快照日</span>
+                  <span className="font-mono">
+                    {payload?.snapshot_date || '加载中…'}
+                  </span>
+                </div>
+              ) : (
+                <select
+                  value={month}
+                  onChange={(e) => setMonth(e.target.value)}
+                  className="px-3 py-2 rounded-lg border border-gac-gray-200 text-sm text-gac-gray-700 bg-white hover:border-gac-primary"
+                >
+                  {monthOptions.map((m) => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+              )}
               <button
                 type="button"
                 disabled
@@ -339,7 +349,10 @@ export default function ReportRenderer({ reportMeta, defaultMonth = '2025-03' }:
           {/* 元信息 footer */}
           <div className="content-wrap pb-8">
             <div className="text-center text-xs text-gac-gray-400">
-              数据生成时间：{payload.generated_at} · 月份：{payload.month}
+              数据生成时间：{payload.generated_at}
+              {reportMeta.snapshotDriven && payload.snapshot_date
+                ? ` · 快照日：${payload.snapshot_date}`
+                : ` · 月份：${payload.month}`}
               {payload.is_mocked && ' · 演示数据'}
             </div>
           </div>

@@ -9,6 +9,13 @@ export interface ReportMeta {
   description: string;
   icon: string;
   status: 'ready' | 'mocked' | 'wip';
+  /**
+   * 该报表是否由「最新快照日」驱动（而非用户选择的月份）。
+   * true 时前端会隐藏月份选择器，显示「快照日」徽章。
+   * 例：库存预警只能用最新库存快照日 + 最近 30 天销量，
+   *     不能回放历史快照（数仓未保留历史 snapshot → sales 的对应关系）。
+   */
+  snapshotDriven?: boolean;
 }
 
 export const REPORT_REGISTRY: Record<string, ReportMeta> = {
@@ -43,6 +50,7 @@ export const REPORT_REGISTRY: Record<string, ReportMeta> = {
     description: '经销商库存周转天数、库存系数与高库存预警。',
     icon: '📦',
     status: 'ready',
+    snapshotDriven: true, // 由最新库存快照日驱动
   },
   'conversion-funnel': {
     report_id: 'conversion-funnel',
