@@ -54,9 +54,6 @@ export default function ReportsPage() {
     ? reports
     : reports.filter((r) => r.category === activeCategory);
 
-  const readyCount = reports.filter((r) => r.status === 'ready').length;
-  const mockedCount = reports.filter((r) => r.status === 'mocked').length;
-
   return (
     <div className="content-wrap">
       {/* 顶部说明 */}
@@ -68,7 +65,7 @@ export default function ReportsPage() {
             <p className="text-sm text-gac-gray-500 leading-relaxed">
               高频经营场景的标准报表模板，集成 SOP 归因引擎与指标口径，可一键导出与定时订阅。
               <span className="text-gac-primary font-medium ml-2">
-                共 {reports.length} 个标准报表（{readyCount} 已就绪 / {mockedCount} 演示）
+                共 {reports.length} 个标准报表
               </span>
             </p>
           </div>
@@ -104,14 +101,9 @@ export default function ReportsPage() {
             >
               <div className="flex items-start justify-between mb-3">
                 <div className="text-3xl">{report.icon}</div>
-                <div className="flex flex-col items-end gap-1">
-                  <span className="text-xs px-2 py-1 bg-blue-50 text-gac-primary rounded">
-                    {report.category}
-                  </span>
-                  <span className={`text-[11px] px-2 py-0.5 rounded ${badge.className}`}>
-                    {badge.text}
-                  </span>
-                </div>
+                <span className={`text-[11px] px-2 py-0.5 rounded ${badge.className}`}>
+                  {badge.text}
+                </span>
               </div>
               <h3 className="text-base font-semibold text-gac-gray-900 mb-2">
                 {report.name}
