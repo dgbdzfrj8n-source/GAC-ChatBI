@@ -10,21 +10,6 @@ import { REPORT_REGISTRY, type ReportMeta } from '@/lib/reportRegistry';
 
 const CATEGORIES = ['全部', '整车销售', '经营财务', '市场营销', '渠道经营', '库存管理'];
 
-const STATUS_BADGE: Record<ReportMeta['status'], { text: string; className: string }> = {
-  ready: {
-    text: '✅ 已就绪',
-    className: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
-  },
-  mocked: {
-    text: '📦 演示数据',
-    className: 'bg-amber-50 text-amber-700 border border-amber-200',
-  },
-  wip: {
-    text: '🚧 开发中',
-    className: 'bg-slate-100 text-slate-600 border border-slate-200',
-  },
-};
-
 export default function ReportsPage() {
   const [activeCategory, setActiveCategory] = useState('全部');
   const [serverRegistry, setServerRegistry] = useState<ReportMeta[]>([]);
@@ -91,19 +76,14 @@ export default function ReportsPage() {
 
       {/* 报表卡片网格 */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {filtered.map((report) => {
-          const badge = STATUS_BADGE[report.status] || STATUS_BADGE.ready;
-          return (
-            <Link
-              key={report.report_id}
-              href={`/reports/${report.report_id}`}
-              className="content-card p-5 hover:shadow-md hover:border-gac-primary transition-all block"
-            >
+        {filtered.map((report) => (
+          <Link
+            key={report.report_id}
+            href={`/reports/${report.report_id}`}
+            className="content-card p-5 hover:shadow-md hover:border-gac-primary transition-all block"
+          >
               <div className="flex items-start justify-between mb-3">
                 <div className="text-3xl">{report.icon}</div>
-                <span className={`text-[11px] px-2 py-0.5 rounded ${badge.className}`}>
-                  {badge.text}
-                </span>
               </div>
               <h3 className="text-base font-semibold text-gac-gray-900 mb-2">
                 {report.name}
@@ -117,8 +97,7 @@ export default function ReportsPage() {
                 </span>
               </div>
             </Link>
-          );
-        })}
+        ))}
       </div>
     </div>
   );
