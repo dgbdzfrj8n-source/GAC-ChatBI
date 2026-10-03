@@ -9,7 +9,7 @@ import GacLogo from './GacLogo';
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const { role, roleInfo } = useRole();
+  const { role } = useRole();
 
   // 按角色过滤菜单
   const filteredConfig = menuConfig
@@ -30,22 +30,6 @@ export default function Sidebar() {
           </div>
           <div className="text-[11px] mt-0.5 text-gac-gray-500 dark:text-gac-gray-400 truncate">
             智能经营分析平台
-          </div>
-        </div>
-      </div>
-
-      {/* ====== 当前角色徽标（P2-3） ====== */}
-      <div
-        data-tour="role-badge"
-        className="px-4 py-2.5 border-b border-gac-gray-200 dark:border-gac-gray-700 flex items-center gap-2 bg-gac-gray-50/50 dark:bg-gac-gray-800/30"
-      >
-        <span className="text-base">{roleInfo.icon}</span>
-        <div className="flex-1 min-w-0">
-          <div className="text-xs font-medium text-gac-gray-900 dark:text-white truncate">
-            当前视角 · {roleInfo.label}
-          </div>
-          <div className="text-[10px] text-gac-gray-500 truncate">
-            {roleInfo.description}
           </div>
         </div>
       </div>
