@@ -180,7 +180,12 @@ def preview_query(query: str) -> Dict[str, Any]:
       2. 指标定义/公式中的关键词命中（权重 1/词）
       3. 同义词命中：业务术语的 synonyms 命中 query 中的中文词（权重 3）
       4. 反向：query 中的词在术语定义中出现（权重 2）
+
+    召回阈值：score >= MIN_SCORE 才视为有效命中。
+    设计目的：避免 2-gram 碎片命中（score=2）和竞品品牌输入（score=0~2）等噪声
+    被当作「召回成功」误导用户。低于阈值的命中仍计入 below_threshold_count 供调试。
     """
+    MIN_SCORE = 3
     snapshot = get_full_snapshot()
     q_lower = query.lower()
 
@@ -199,6 +204,7 @@ def preview_query(query: str) -> Dict[str, Any]:
 
     # 1. 匹配指标
     matched_metrics = []
+    below_threshold_metrics = 0
     for m in snapshot["metrics"]:
         score = 0
         reasons = []
@@ -225,7 +231,7 @@ def preview_query(query: str) -> Dict[str, Any]:
         if kw_hits:
             score += len(kw_hits)
             reasons.append(f"关键词「{'/'.join(kw_hits[:3])}」")
-        if score > 0:
+        if score >= MIN_SCORE:
             matched_metrics.append({
                 "metric_id": m["metric_id"],
                 "metric_name": m["metric_name"],
@@ -234,10 +240,13 @@ def preview_query(query: str) -> Dict[str, Any]:
                 "reasons": reasons[:3],
                 "sample_sql": m.get("example_query"),
             })
+        elif score > 0:
+            below_threshold_metrics += 1
     matched_metrics.sort(key=lambda x: -x["score"])
 
     # 2. 匹配术语
     matched_terms = []
+    below_threshold_terms = 0
     for t in snapshot["glossary"]:
         score = 0
         reasons = []
@@ -249,7 +258,7 @@ def preview_query(query: str) -> Dict[str, Any]:
                 score += 3
                 reasons.append(f"含同义词「{syn}」")
                 break
-        if score > 0:
+        if score >= MIN_SCORE:
             matched_terms.append({
                 "name": t["name"],
                 "definition": t.get("definition", ""),
@@ -258,6 +267,8 @@ def preview_query(query: str) -> Dict[str, Any]:
                 "score": score,
                 "reasons": reasons,
             })
+        elif score > 0:
+            below_threshold_terms += 1
     matched_terms.sort(key=lambda x: -x["score"])
 
     return {
@@ -265,4 +276,6 @@ def preview_query(query: str) -> Dict[str, Any]:
         "matched_metrics": matched_metrics[:3],
         "matched_terms": matched_terms[:3],
         "sample_sql": matched_metrics[0]["sample_sql"] if matched_metrics else None,
+        "below_threshold_count": below_threshold_metrics + below_threshold_terms,
+        "min_score": MIN_SCORE,
     }
