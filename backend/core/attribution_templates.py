@@ -505,7 +505,7 @@ class AttributionTemplateManager:
         steps_list: List[Dict[str, Any]] = []
         if steps is not None:
             try:
-                from backend.api.schemas import StepSpec, AttributionTemplateV2
+                from api.schemas import StepSpec, AttributionTemplateV2
                 # 字段级校验
                 step_objs = [StepSpec(**s) for s in steps]
                 # 模板级 model_validator：order 连续 / step_id 唯一 / depends_on 存在 / strategy 必须 depends_on
@@ -761,7 +761,7 @@ class AttributionTemplateManager:
         steps_list: Optional[List[Dict[str, Any]]] = None
         if steps is not None:
             try:
-                from backend.api.schemas import StepSpec, AttributionTemplateV2
+                from api.schemas import StepSpec, AttributionTemplateV2
                 step_objs = [StepSpec(**s) for s in steps]
                 _pseudo = AttributionTemplateV2(
                     id="__validate__", name="__validate__", steps=step_objs,
