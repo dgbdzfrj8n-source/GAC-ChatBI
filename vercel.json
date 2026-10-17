@@ -3,14 +3,9 @@
   "version": 2,
   "framework": "nextjs",
   "buildCommand": "cd frontend && npm install && npm run build",
-  "outputDirectory": "frontend/out",
+  "outputDirectory": "frontend/.next",
   "installCommand": "cd frontend && npm install",
-  "rewrites": [
-    {
-      "source": "/(.*)",
-      "destination": "/$1"
-    }
-  ],
+  "regions": ["iad1"],
   "headers": [
     {
       "source": "/(.*)",
@@ -26,6 +21,10 @@
         {
           "key": "Referrer-Policy",
           "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "X-XSS-Protection",
+          "value": "1; mode=block"
         }
       ]
     },
@@ -38,5 +37,8 @@
         }
       ]
     }
-  ]
+  ],
+  "env": {
+    "NEXT_PUBLIC_API_URL": "@gac-chatbi-api-url"
+  }
 }

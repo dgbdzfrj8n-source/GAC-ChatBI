@@ -7,6 +7,10 @@ import { filterMenusByRole } from '@/lib/roles';
 import { useRole } from '@/contexts/RoleContext';
 import GacLogo from './GacLogo';
 
+// v2.0 配置 - 统一版本号
+const APP_VERSION = 'v2.0.0';
+const SPRINT_NAME = 'Sprint 10';
+
 export default function Sidebar() {
   const pathname = usePathname();
   const { role } = useRole();
@@ -21,7 +25,7 @@ export default function Sidebar() {
 
   return (
     <aside data-tour="sidebar" className="w-60 bg-white border-r border-gac-gray-200 flex flex-col h-screen flex-shrink-0 dark:bg-gac-gray-900 dark:border-gac-gray-700">
-      {/* ====== 顶部 Logo 区 ====== */}
+      {/* 顶部 Logo 区 */}
       <div className="h-16 flex items-center px-4 border-b border-gac-gray-200 flex-shrink-0 gap-3 dark:border-gac-gray-700">
         <GacLogo size={40} />
         <div className="leading-tight min-w-0">
@@ -36,7 +40,7 @@ export default function Sidebar() {
 
       {/* 菜单区 */}
       <nav className="flex-1 overflow-y-auto py-2 scrollbar-thin">
-        {filteredConfig.map((group, gi) => (
+        {filteredConfig.map((group) => (
           <div key={group.id} className="mb-2" data-tour={`menu-group-${group.id}`}>
             <div className="menu-group-title">
               {group.label}
@@ -60,7 +64,6 @@ export default function Sidebar() {
             })}
           </div>
         ))}
-        {/* 角色无权限时提示 */}
         {filteredConfig.length === 0 && (
           <div className="px-4 py-8 text-center text-xs text-gac-gray-400">
             当前角色无可见菜单
@@ -68,11 +71,11 @@ export default function Sidebar() {
         )}
       </nav>
 
-      {/* 底部版本信息 */}
+      {/* 底部版本信息 - v2.0 统一 */}
       <div className="px-4 py-3 border-t border-gac-gray-200 flex-shrink-0">
         <div className="text-[11px] text-gac-gray-500 text-center leading-relaxed">
-          <div>v1.9.0 · Sprint 9</div>
-          <div className="text-gac-primary mt-0.5 font-medium">谢志锋</div>
+          <div className="font-medium">{APP_VERSION} · {SPRINT_NAME}</div>
+          <div className="text-gac-primary mt-0.5">谢志锋</div>
         </div>
       </div>
     </aside>
