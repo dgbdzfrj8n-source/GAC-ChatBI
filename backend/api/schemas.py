@@ -4,7 +4,7 @@ FastAPI 前后端通信协议与数据契约规范 (Pydantic V2)
 """
 
 from pydantic import BaseModel, Field, field_validator, model_validator
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
 
 # --- 1. 问数交互契约 ---
 class ChatQueryRequest(BaseModel):
@@ -482,7 +482,7 @@ from typing import Literal
 
 class ReportKpi(BaseModel):
     label: str = Field(..., description="KPI 标签")
-    value: float | int | str = Field(..., description="KPI 数值")
+    value: Union[float, int, str] = Field(..., description="KPI 数值")
     unit: str = Field("", description="单位：% / 辆 / 万 / 倍 ...")
     trend: Optional[Literal["up", "down", "flat"]] = Field(
         None, description="趋势方向（前端箭头用）"
