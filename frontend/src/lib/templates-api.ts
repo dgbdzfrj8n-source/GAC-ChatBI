@@ -326,7 +326,7 @@ export async function listSupportedMetrics(): Promise<MetricOption[]> {
 // 单模板获取（兼容老接口，但返回完整 steps）
 // ──────────────────────────────────────────────────────────
 export async function getTemplate(templateId: string): Promise<Template | null> {
-  const res = await fetch(
+  const res = await authFetch(
     `${API_URL}/api/sop/templates/${encodeURIComponent(templateId)}`
   );
   if (!res.ok) return null;
