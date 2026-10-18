@@ -47,7 +47,20 @@ services:
         name: Cache-Control
         value: public, max-age=0, must-revalidate
     routes:
-      # 前端路由 fallback（Next.js 静态导出必备）
+      # ===== BUG-001/002 修复：动态路由 fallback =====
+      # 原因：Next.js 静态导出后，[id] 类动态路由只能生成 _ 静态文件
+      # 访问 /templates/run/<任意id> 都会 404
+      # 解法：把所有动态路由 fallback 到对应的 _.html，
+      #      由客户端 React Router 接管并读取 useParams()
+      # 注意：路由顺序很重要，具体路由必须在 /* 通用 fallback 之前
+      # ────────────────────────────────────────────
+      - type: rewrite
+        source: /templates/run/:id
+        destination: /templates/run/_/_.html
+      - type: rewrite
+        source: /templates/editor/:id
+        destination: /templates/editor/_/_.html
+      # 通用 fallback（保留原规则，不能删）
       - type: rewrite
         source: /*
         destination: /index.html

@@ -155,7 +155,7 @@ SYSTEM_PRESETS: List[Dict[str, Any]] = [
 ROLE_DEFAULTS: Dict[str, str] = {
     "executive": "preset_exec_quarterly",     # 高管 → 季度复盘
     "analyst":   "preset_analyst_deep",        # 分析师 → 深度下钻
-    "product":   "preset_analyst_deep",        # 产品经理 → 深度下钻
+    "product":   "preset_model_product",       # 产品经理 → 车型经理产品复盘 [BUG-003 修复]
     "visitor":   "preset_exec_quarterly",      # 访客 → 默认宽口径
 }
 

@@ -102,19 +102,21 @@ const SAMPLE_QUERIES = [
 ];
 
 export default function DemoTour() {
-  const [active, setActive] = useState(false);
+  // [BUG-004 修复] 初始化时直接从 localStorage 读取"已完成"标志
+  // 原因：原版 useState(false) + useEffect 异步设置会导致
+  //     - SSR 渲染完成 → useState 同步 false → useEffect 异步判断 → setActive(true)
+  //     - 在 next export + 全页刷新场景下，组件每次 mount 都重新执行这个异步流程，
+  //       即使之前点过关闭也会重新弹出
+  // 新版：渲染前直接从 localStorage 读取，避免组件 mount 后的状态变更
+  const [active, setActive] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;  // SSR 安全
+    return !localStorage.getItem(STORAGE_KEY);         // 没记录 → 首次访问 → 显示
+  });
   const [stepIdx, setStepIdx] = useState(0);
   const [highlightRect, setHighlightRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
 
-  // 启动条件：首次访问 或 用户手动触发
-  useEffect(() => {
-    const done = localStorage.getItem(STORAGE_KEY);
-    if (!done) {
-      // 延迟 800ms 让首屏渲染完毕再弹出，体验更顺
-      const t = setTimeout(() => setActive(true), 800);
-      return () => clearTimeout(t);
-    }
-  }, []);
+  // 手动触发的 useEffect 保留在下方
+  // （首次访问逻辑已通过 useState 惰性初始化处理，无需 useEffect）
 
   // 监听手动触发（来自 TopBar 按钮 / 帮助中心）
   useEffect(() => {

@@ -99,7 +99,10 @@ export async function listTemplates(
   if (user) params.set("user", user);
   const qs = params.toString();
   const url = `${API_URL}/api/sop/templates${qs ? "?" + qs : ""}`;
-  const res = await fetch(url);
+  // [BUG-002 修复] 改用 authFetch 以携带 Authorization 头
+  // 原因：Sprint 10 鉴权中间件要求 user 模板列表必须鉴权，
+  // 旧版裸 fetch 会返回 401 但错误被上层 catch 吞掉 → user_templates 始终为空
+  const res = await authFetch(url);
   if (!res.ok) throw new Error(`listTemplates failed: ${res.status}`);
   return res.json();
 }
