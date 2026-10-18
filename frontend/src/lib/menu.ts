@@ -83,8 +83,8 @@ export const menuConfig: MenuGroup[] = [
         id: 'templates',
         label: '归因模板',
         icon: '🎯',
-        path: '/templates',
-        description: '归因维度模板中心：预设 + 角色默认 + 自定义',
+        path: '/template-center',
+        description: '归因模板中心 v3：NL2SQL/策略/聚合/AI 结论 编排',
       },
     ],
   },
@@ -192,9 +192,9 @@ export const pageTitleMap: Record<string, { title: string; subtitle: string; let
     subtitle: '用户采纳 / 不采纳 / 修正反馈 · 一键闭环关联语义层',
     letter: 'B', // Bad
   },
-  '/templates': {
-    title: '归因维度模板',
-    subtitle: '预设 + 角色默认 + 用户自定义 · 三类模板统一管理',
+  '/template-center': {
+    title: '归因模板中心',
+    subtitle: '归因分析模板的多步执行编排：NL2SQL / 策略 / 聚合 / AI 结论',
     letter: 'G', // 归
   },
   '/audit': {

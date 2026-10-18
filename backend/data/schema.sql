@@ -98,3 +98,74 @@ CREATE TABLE IF NOT EXISTS dim_dealer (
     region_name VARCHAR,
     dealer_type VARCHAR             -- 直营店 / 经销店 / 商超店
 );
+
+-- ==============================================================================
+-- 归因模板中心 v3 (Sprint 11)
+-- 4 张核心表：template / step / run / step_execution
+-- ==============================================================================
+
+-- 9. 模板定义表（按 version 覆盖，保留历史）
+CREATE TABLE IF NOT EXISTS attribution_template (
+    template_id VARCHAR PRIMARY KEY,           -- UUID
+    name VARCHAR NOT NULL,                     -- 模板名称（中文）
+    code VARCHAR UNIQUE,                       -- 英文代码，如 sales_attr_qoq
+    description TEXT,                          -- 业务说明
+    category VARCHAR,                          -- 分类：销售归因/市场归因/库存归因
+    tags VARCHAR,                              -- JSON 数组字符串
+    current_version INTEGER NOT NULL DEFAULT 1,
+    is_archived BOOLEAN NOT NULL DEFAULT FALSE, -- 软删除标记
+    is_builtin BOOLEAN NOT NULL DEFAULT FALSE,  -- 是否系统预设
+    created_by VARCHAR,                        -- username
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 10. 模板版本快照表（不可变历史）
+CREATE TABLE IF NOT EXISTS attribution_template_version (
+    template_id VARCHAR NOT NULL,
+    version INTEGER NOT NULL,
+    steps_json TEXT NOT NULL,                  -- JSON 数组：StepSpec[]
+    status VARCHAR NOT NULL,                   -- 'draft' | 'published'
+    changelog TEXT,
+    created_by VARCHAR,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (template_id, version)
+);
+
+-- 11. 模板运行实例表
+CREATE TABLE IF NOT EXISTS attribution_template_run (
+    run_id VARCHAR PRIMARY KEY,                -- UUID
+    template_id VARCHAR NOT NULL,
+    template_version INTEGER NOT NULL,
+    user_query TEXT NOT NULL,                  -- 用户原始问题
+    params_json TEXT,                          -- JSON：用户填的变量值
+    status VARCHAR NOT NULL,                   -- 'pending'|'running'|'success'|'failed'|'cancelled'
+    total_steps INTEGER NOT NULL DEFAULT 0,
+    completed_steps INTEGER NOT NULL DEFAULT 0,
+    summary_json TEXT,                         -- 聚合后最终结论
+    error_message TEXT,
+    started_at TIMESTAMP,
+    finished_at TIMESTAMP,
+    duration_ms INTEGER,
+    created_by VARCHAR,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_run_template_id ON attribution_template_run(template_id);
+CREATE INDEX IF NOT EXISTS idx_run_created_at ON attribution_template_run(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_run_status ON attribution_template_run(status);
+
+-- 12. 单步执行明细表
+CREATE TABLE IF NOT EXISTS attribution_step_execution (
+    step_execution_id VARCHAR PRIMARY KEY,      -- UUID
+    run_id VARCHAR NOT NULL,
+    step_index INTEGER NOT NULL,               -- 0-based 步骤序号
+    step_name VARCHAR NOT NULL,                -- 步骤中文名
+    step_type VARCHAR NOT NULL,                -- 'nl2sql' | 'strategy' | 'aggregation' | 'conclusion'
+    input_json TEXT,                           -- 步骤输入快照
+    output_json TEXT,                          -- 步骤输出快照
+    status VARCHAR NOT NULL,                   -- 'pending'|'running'|'success'|'failed'|'skipped'
+    error_message TEXT,
+    duration_ms INTEGER,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_step_exec_run_id ON attribution_step_execution(run_id);

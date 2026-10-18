@@ -45,14 +45,20 @@ class Settings:
     LLM_API_KEY = os.environ.get("LLM_API_KEY", "")
     LLM_ACTUAL_MODEL = "deepseek-chat"
     
-    # 数据文件路径
+# 数据文件路径
     DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+    DATABASE_PATH = os.path.join(DATA_DIR, "gac_bi.db")
     MAIN_DB_TABLES: List[str] = [
         "fact_sales_daily",
         "dim_budget_target",
         "fact_marketing_expenses",
         "fact_dealer_traffic",   # v2.0新增
         "fact_inventory",         # v2.0新增
+        # v3 归因模板 4 张
+        "attribution_template",
+        "attribution_template_version",
+        "attribution_template_run",
+        "attribution_step_execution",
     ]
     
     # 安全配置
@@ -113,3 +119,13 @@ def get_main_tables() -> List[str]:
 def get_business_domains() -> List[str]:
     """获取业务域列表"""
     return settings.BUSINESS_DOMAINS
+
+
+def get_database_path() -> str:
+    """获取主库 DuckDB 文件路径"""
+    return settings.DATABASE_PATH
+
+
+def get_settings() -> "Settings":
+    """获取全局配置实例（依赖注入用）"""
+    return settings

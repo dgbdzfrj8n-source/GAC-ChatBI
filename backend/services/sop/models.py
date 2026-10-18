@@ -1,82 +1,205 @@
 """
-SOP 执行过程的统一数据模型。
+归因模板中心 v3 数据模型（Pydantic v2）
 
-- `StepResult`：单步执行结果（与前端 SDD §三 TypeScript StepResult 字段对齐）
-- `Summary`：SOP 完成后聚合的总结
-- `StepExecutionError`：单步执行异常（用于上层捕获 + 标记 failed）
+约定：
+- 时间字段：datetime
+- 枚举：StrEnum（与 DB 字符串对齐）
+- 业务字段全部 Optional，避免老数据缺字段报错
 """
-
 from __future__ import annotations
-from dataclasses import dataclass, field, asdict
-from typing import List, Dict, Any, Optional
+
+import datetime
+from enum import Enum
+from typing import Any, Dict, List, Optional
+
+from pydantic import BaseModel, Field, ConfigDict
 
 
-@dataclass
-class StepExecutionError(Exception):
-    """SOP 单步执行错误。捕获后转 StepResult(status='failed', error=...)"""
-    message: str
-    step_index: Optional[int] = None
-
-    def __str__(self) -> str:
-        return f"StepExecutionError(step_index={self.step_index}): {self.message}"
-
-
-@dataclass
-class StepResult:
-    """单步执行结果（与前端 TypeScript `StepResult` 字段一致）。"""
-    step_name: str = ""
-    step_type: str = ""                              # overview/horizontal/drilldown/breakdown/trend/strategy
-    status: str = "success"                          # success / failed / skipped
-    replaced_question: Optional[str] = None
-    thinking_steps: List[Dict[str, Any]] = field(default_factory=list)
-    sql: Optional[str] = None
-    result: Optional[Dict[str, Any]] = None          # {columns: [...], rows: [[...], ...]}
-    chart_type: Optional[str] = None                  # single_kpi/bar/line/pie/table/text
-    chart_config: Optional[Dict[str, Any]] = None
-    conclusion: Optional[str] = None
-    key_numbers: List[Dict[str, str]] = field(default_factory=list)  # [{label, value}]
-    suggestions: List[str] = field(default_factory=list)             # 仅 strategy 步骤用
-    error: Optional[str] = None
-    duration_ms: int = 0
-
-    def to_dict(self) -> Dict[str, Any]:
-        """转为 dict，供 FastAPI 返回 + 存 DuckDB JSON 字段。"""
-        return asdict(self)
-
-    @classmethod
-    def failed(cls, step_name: str, step_type: str, error_msg: str,
-               duration_ms: int = 0) -> "StepResult":
-        """工厂方法：构造一个失败结果。"""
-        return cls(
-            step_name=step_name,
-            step_type=step_type,
-            status="failed",
-            error=error_msg,
-            duration_ms=duration_ms,
-        )
-
-    @classmethod
-    def skipped(cls, step_name: str, step_type: str) -> "StepResult":
-        """工厂方法：用户跳过。"""
-        return cls(
-            step_name=step_name,
-            step_type=step_type,
-            status="skipped",
-            duration_ms=0,
-        )
+# =====================================================================
+# 枚举
+# =====================================================================
+class RunStatus(str, Enum):
+    PENDING = "pending"
+    RUNNING = "running"
+    SUCCESS = "success"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
 
 
-@dataclass
-class Summary:
-    """SOP 全部步骤完成后聚合的总结。"""
-    template_name: str = ""
-    total_duration_ms: int = 0
-    success_count: int = 0
-    failed_count: int = 0
-    skipped_count: int = 0
-    findings: List[str] = field(default_factory=list)              # 每步 1 句话
-    key_numbers: List[Dict[str, str]] = field(default_factory=list)  # 去重前 6 个
-    suggestions: List[str] = field(default_factory=list)            # strategy 步骤的建议
+class StepStatus(str, Enum):
+    PENDING = "pending"
+    RUNNING = "running"
+    SUCCESS = "success"
+    FAILED = "failed"
+    SKIPPED = "skipped"
 
-    def to_dict(self) -> Dict[str, Any]:
-        return asdict(self)
+
+class StepType(str, Enum):
+    NL2SQL = "nl2sql"               # 自然语言 → SQL → 数据
+    STRATEGY = "strategy"           # 选策略（如同环比/TopN）
+    AGGREGATION = "aggregation"     # 聚合中间结果
+    CONCLUSION = "conclusion"       # LLM 写结论
+    LLM_DIRECT = "llm_direct"       # 直接 LLM 推理
+
+
+class VersionStatus(str, Enum):
+    DRAFT = "draft"
+    PUBLISHED = "published"
+
+
+class TemplateCategory(str, Enum):
+    SALES = "销售归因"
+    MARKETING = "市场归因"
+    INVENTORY = "库存归因"
+    CHANNEL = "渠道归因"
+    CUSTOM = "自定义"
+
+
+# =====================================================================
+# 步骤定义（StepSpec）— 模板里的步骤 schema
+# =====================================================================
+class StepVariable(BaseModel):
+    """用户需要填的变量"""
+    model_config = ConfigDict(extra="forbid")
+    name: str = Field(..., description="变量名（英文）")
+    label: str = Field(..., description="展示名（中文）")
+    type: str = Field(..., description="string/number/date/select")
+    required: bool = Field(default=True)
+    default: Optional[Any] = None
+    options: Optional[List[str]] = Field(default=None, description="select 时使用")
+
+
+class StepSpec(BaseModel):
+    """单步定义"""
+    model_config = ConfigDict(extra="forbid")
+    name: str = Field(..., description="步骤中文名")
+    type: StepType
+    description: str = Field(default="", description="步骤业务说明")
+    # 1) NL2SQL 步骤
+    question: Optional[str] = Field(default=None, description="NL2SQL 子问题模板，支持 {var}")
+    metrics: Optional[List[str]] = Field(default=None, description="涉及指标名（用于 schema 剪枝）")
+    dimensions: Optional[List[str]] = Field(default=None, description="涉及维度")
+    # 2) Strategy 步骤
+    strategy: Optional[str] = Field(default=None, description="策略名：qoq/mom/yoy/topn/diff")
+    # 3) Aggregation 步骤
+    aggregation: Optional[str] = Field(default=None, description="sum/avg/count/min/max")
+    group_by: Optional[List[str]] = Field(default=None, description="分组字段")
+    # 4) Conclusion 步骤
+    prompt: Optional[str] = Field(default=None, description="LLM 提示词模板")
+    # 5) 通用
+    variables: List[StepVariable] = Field(default_factory=list)
+    depends_on: List[str] = Field(default_factory=list, description="依赖的前置步骤 name")
+
+
+# =====================================================================
+# 实体模型（与 DB 行对齐）
+# =====================================================================
+class Template(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    template_id: str
+    name: str
+    code: str
+    description: str = ""
+    category: str = ""
+    tags: List[str] = Field(default_factory=list)
+    current_version: int = 1
+    is_archived: bool = False
+    is_builtin: bool = False
+    created_by: str = ""
+    created_at: datetime.datetime
+    updated_at: datetime.datetime
+
+
+class TemplateVersion(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    template_id: str
+    version: int
+    steps: List[Dict[str, Any]]  # 解析后的 StepSpec 列表（保持 Dict 以便前端灵活）
+    status: str
+    changelog: str = ""
+    created_by: str = ""
+    created_at: datetime.datetime
+
+
+class TemplateRun(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    run_id: str
+    template_id: str
+    template_version: int
+    user_query: str
+    params: Dict[str, Any] = Field(default_factory=dict)
+    status: str
+    total_steps: int
+    completed_steps: int = 0
+    summary: Optional[Dict[str, Any]] = None
+    error_message: Optional[str] = None
+    started_at: Optional[datetime.datetime] = None
+    finished_at: Optional[datetime.datetime] = None
+    duration_ms: Optional[int] = None
+    created_by: str = ""
+    created_at: datetime.datetime
+
+
+class StepExecution(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    step_execution_id: str
+    run_id: str
+    step_index: int
+    step_name: str
+    step_type: str
+    input_data: Dict[str, Any] = Field(default_factory=dict)
+    output_data: Optional[Dict[str, Any]] = None
+    status: str
+    error_message: Optional[str] = None
+    duration_ms: Optional[int] = None
+    created_at: datetime.datetime
+
+
+# =====================================================================
+# API 请求/响应模型
+# =====================================================================
+class TemplateCreateRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    code: str = Field(..., min_length=1, max_length=50, pattern=r"^[a-z0-9_]+$")
+    description: str = ""
+    category: str = "自定义"
+    tags: List[str] = Field(default_factory=list)
+    steps: List[Dict[str, Any]] = Field(..., min_length=1)
+
+
+class TemplateUpdateRequest(BaseModel):
+    """修改元信息"""
+    name: Optional[str] = Field(default=None, min_length=1, max_length=100)
+    description: Optional[str] = None
+    category: Optional[str] = None
+    tags: Optional[List[str]] = None
+
+
+class TemplatePublishVersionRequest(BaseModel):
+    steps: List[Dict[str, Any]] = Field(..., min_length=1)
+    changelog: str = ""
+
+
+class TemplateRunCreateRequest(BaseModel):
+    user_query: str = Field(..., min_length=1)
+    params: Dict[str, Any] = Field(default_factory=dict)
+
+
+class TemplateListResponse(BaseModel):
+    items: List[Template]
+    total: int
+
+
+class TemplateRunListResponse(BaseModel):
+    items: List[TemplateRun]
+    total: int
+
+
+class StepExecutionListResponse(BaseModel):
+    items: List[StepExecution]
+    total: int
+
+
+class TemplateRunDetailResponse(BaseModel):
+    run: TemplateRun
+    steps: List[StepExecution]

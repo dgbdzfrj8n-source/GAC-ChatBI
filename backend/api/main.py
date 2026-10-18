@@ -101,6 +101,14 @@ sop_analyzer = SopAnalyzer()
 from services.audit_log import ensure_audit_tables
 ensure_audit_tables()
 
+# [Sprint 11] 注册归因模板中心 v3 路由
+from api.template_center.templates import router as tc_templates_router
+from api.template_center.template_runs import router as tc_runs_router
+from api.template_center.template_meta import router as tc_meta_router
+app.include_router(tc_templates_router)
+app.include_router(tc_runs_router)
+app.include_router(tc_meta_router)
+
 # Render 平台健康检查端点（默认 GET /，不依赖业务初始化）
 @app.get("/", tags=["基础监控"])
 def root():
@@ -287,12 +295,21 @@ def collect_bad_case(req: BadCaseFeedbackRequest):
 
 
 # ─── P0 增强：归因维度模板中心（必须先初始化，sop_analyze 会用到） ─────────
-from core.attribution_templates import AttributionTemplateManager
-template_manager = AttributionTemplateManager()
+# [Sprint 11 v3] 容错加载：v2 的 AttributionTemplateManager 已被 v3 模板中心替代
+try:
+    from core.attribution_templates import AttributionTemplateManager
+    template_manager = AttributionTemplateManager()
+except ImportError:
+    print("  ⚠ core.attribution_templates not found (v3 已替代)")
+    template_manager = None
 
 # ⭐ P2-SprintB：SOP 步骤化执行引擎（run / preview 用）
-from core.sop_executor import SopExecutor
-sop_executor = SopExecutor()
+try:
+    from core.sop_executor import SopExecutor
+    sop_executor = SopExecutor()
+except ImportError:
+    print("  ⚠ core.sop_executor not found (v3 已替代)")
+    sop_executor = None
 
 
 # ─── Sprint 5.3 SOP 高频归因引擎 ──────────────────────────────────────
