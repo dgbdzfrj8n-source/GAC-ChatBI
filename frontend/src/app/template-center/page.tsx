@@ -46,24 +46,6 @@ export default function TemplateCenterPage() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* Header */}
-      <header className="bg-white border-b border-slate-200">
-        <div className="max-w-7xl mx-auto px-6 py-5 flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900">归因模板中心</h1>
-            <p className="text-sm text-slate-500 mt-1">
-              管理归因分析模板，编排 NL2SQL / 策略 / 聚合 / 结论 的多步执行
-            </p>
-          </div>
-          <Link
-            href="/template-center/new"
-            className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition"
-          >
-            <Plus size={18} /> 新建模板
-          </Link>
-        </div>
-      </header>
-
       {/* Filter Bar */}
       <div className="max-w-7xl mx-auto px-6 py-5">
         <div className="bg-white rounded-lg border border-slate-200 p-4 flex flex-wrap items-center gap-3">
@@ -109,9 +91,15 @@ export default function TemplateCenterPage() {
             />
             <Archive size={14} /> 显示已归档
           </label>
-          <div className="text-sm text-slate-500 ml-auto">
+          <div className="text-sm text-slate-500">
             共 <span className="font-semibold text-slate-900">{total}</span> 个模板
           </div>
+          <Link
+            href="/template-center/new"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 transition text-sm font-medium"
+          >
+            <Plus size={16} /> 新建模板
+          </Link>
         </div>
 
         {/* List */}
