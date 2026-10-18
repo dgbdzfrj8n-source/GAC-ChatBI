@@ -102,21 +102,25 @@ class ReportExecutor:
         self._register_all()
 
     def _register_all(self) -> None:
-        from core.report_builders.budget_fulfillment import build as bf
-        from core.report_builders.sales_attribution import build as sa
-        from core.report_builders.channel_roi import build as cr
-        from core.report_builders.inventory_warning import build as iw
-        from core.report_builders.conversion_funnel import build as cf
-        from core.report_builders.regional_ranking import build as rr
+        # [Sprint 11 v3] 容错加载：缺哪个 builder 就跳过哪个
+        # 之前的硬 import 会在 v3 删掉 sales_attribution.py 后崩
+        def _safe(name: str):
+            try:
+                mod = __import__(f"core.report_builders.{name}", fromlist=["build"])
+                return mod.build
+            except Exception as e:
+                print(f"  ⚠ Builder '{name}' unavailable: {e}")
+                return None
 
-        self._builders = {
-            "budget-fulfillment": bf,
-            "sales-attribution": sa,
-            "channel-roi": cr,
-            "inventory-warning": iw,
-            "conversion-funnel": cf,
-            "regional-ranking": rr,
+        builders = {
+            "budget-fulfillment": _safe("budget_fulfillment"),
+            "sales-attribution": _safe("sales_attribution"),  # v3 暂时未实现
+            "channel-roi": _safe("channel_roi"),
+            "inventory-warning": _safe("inventory_warning"),
+            "conversion-funnel": _safe("conversion_funnel"),
+            "regional-ranking": _safe("regional_ranking"),
         }
+        self._builders = {k: v for k, v in builders.items() if v is not None}
 
     def execute(self, report_id: str, month: str) -> ReportPayload:
         """

@@ -60,6 +60,15 @@ services:
       - type: rewrite
         source: /templates/editor/:id
         destination: /templates/editor/_/_.html
+      # ===== v3 模板中心：动态路由 fallback =====
+      # 模板列表点击"运行"/"详情"/"编辑"会进 /template-center/<id>
+      # 同样需要 fallback 到 _/_.html
+      - type: rewrite
+        source: /template-center/:id
+        destination: /template-center/_/_.html
+      - type: rewrite
+        source: /template-center/new
+        destination: /template-center/new.html
       # 通用 fallback（保留原规则，不能删）
       - type: rewrite
         source: /*
