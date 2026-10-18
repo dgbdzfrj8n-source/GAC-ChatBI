@@ -49,22 +49,47 @@ class TemplateDB:
     def ensure_tables(self) -> None:
         """执行 schema.sql 中 attribution_* 4 张表的 CREATE IF NOT EXISTS"""
         import os as _os
-        schema_path = _os.path.join(
-            _os.path.dirname(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))),
-            "data", "schema.sql",
-        )
-        if not _os.path.exists(schema_path):
-            print(f"  ⚠ schema.sql not found: {schema_path}")
-            return
+        # 兼容两种目录结构：
+        #   A) backend/services/sop/template_db.py
+        #      → backend/data/schema.sql  (本地开发)
+        #   B) services/sop/template_db.py (Render)
+        #      → data/schema.sql
+        candidates = [
+            _os.path.join(
+                _os.path.dirname(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))),
+                "data", "schema.sql",
+            ),
+            _os.path.join(
+                _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
+                "data", "schema.sql",
+            ),
+        ]
+        schema_path = next((p for p in candidates if _os.path.exists(p)), None)
+        if not schema_path:
+            raise FileNotFoundError(
+                f"schema.sql not found in any of: {candidates}"
+            )
         with open(schema_path, "r", encoding="utf-8") as f:
             sql = f.read()
-        # 只执行 attribution_* 相关语句
-        keep = []
-        for stmt in sql.split(";"):
-            s = stmt.strip()
-            if s.upper().startswith("CREATE TABLE ATTRIBUTION_") \
-                    or s.upper().startswith("CREATE INDEX"):
-                keep.append(s)
+        # 提取 attribution_* 的 DDL（去注释、用正则精确切分，修复 split(';') 边界问题）
+        import re as _re
+        # 1) 去掉所有行尾注释（-- ... 后的内容）
+        sql_clean = "\n".join(_re.sub(r"--.*$", "", line) for line in sql.splitlines())
+        # 2) 用正则匹配完整 DDL（CREATE TABLE ... ；或 CREATE INDEX ... ；）
+        #    非贪婪 + DOTALL 避免跨语句匹配
+        keep = _re.findall(
+            r"CREATE\s+(?:TABLE|INDEX)\s+(?:IF\s+NOT\s+EXISTS\s+)?[^\;]*?\;",
+            sql_clean,
+            flags=_re.IGNORECASE | _re.DOTALL,
+        )
+        # 3) 只保留 attribution_* 相关
+        keep = [s for s in keep if "ATTRIBUTION_" in s.upper()]
+        print(f"  [template-center] ensure_tables: matched {len(keep)} attribution_* DDL from {schema_path}")
+        if not keep:
+            raise RuntimeError(
+                f"No attribution_* DDL extracted from {schema_path}. "
+                f"Check schema.sql content."
+            )
         with self._conn() as con:
             for s in keep:
                 try:
