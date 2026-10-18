@@ -11,10 +11,18 @@ import type {
   StepStatus,
 } from "./template-center-types";
 
-// 后端基地址（前端构建时通过 NEXT_PUBLIC_API_URL 注入；默认同源）
+// 后端基地址
+// 1) 优先：构建期注入（NEXT_PUBLIC_API_URL）
+// 2) 兜底：写死 Render 后端域名（避免环境变量漏配导致前端 fetch 同源失败）
+// 3) 最后：相对路径（本地 dev 用）
+const RENDER_BACKEND = "https://gac-chatbi-api.onrender.com";
+
 const API_BASE =
-  (typeof window !== "undefined" && (window as any).__API_BASE__) ||
-  process.env.NEXT_PUBLIC_API_URL ||   // ✅ 改名：BASE → URL（与其他 15 个文件一致）
+  process.env.NEXT_PUBLIC_API_URL ||
+  (typeof window !== "undefined" &&
+   window.location.hostname === "gac-chat-bi.onrender.com"
+    ? RENDER_BACKEND
+    : "") ||
   "";
 
 export interface ListTemplatesParams {
@@ -54,23 +62,33 @@ export interface CreateRunBody {
 // ---- HTTP 包装 ----
 async function http<T>(path: string, init?: RequestInit): Promise<T> {
   const token = typeof window !== "undefined" ? localStorage.getItem("gac_token") : null;
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(init?.headers || {}),
-    },
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    let detail = text;
-    try {
-      detail = JSON.parse(text).detail || text;
-    } catch {}
-    throw new Error(`${res.status} ${res.statusText}: ${detail}`);
+  try {
+    const res = await fetch(`${API_BASE}${path}`, {
+      ...init,
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(init?.headers || {}),
+      },
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      let detail = text;
+      try {
+        detail = JSON.parse(text).detail || text;
+      } catch {}
+      throw new Error(`${res.status} ${res.statusText}: ${detail}`);
+    }
+    return res.json() as Promise<T>;
+  } catch (e: any) {
+    // 浏览器 fetch 失败（DNS/CORS/网络），给个可读错误
+    if (e?.name === "TypeError" && /fetch|Load failed/i.test(e?.message || "")) {
+      throw new Error(
+        `无法连接后端 ${API_BASE || "(同源)"}：${e.message}。请检查后端服务是否启动 / CORS 是否放行 / 反向代理是否正确。`,
+      );
+    }
+    throw e;
   }
-  return res.json() as Promise<T>;
 }
 
 // ============================================================
