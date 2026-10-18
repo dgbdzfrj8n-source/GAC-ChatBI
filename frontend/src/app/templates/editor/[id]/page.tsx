@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import {
   Layers, Plus, Trash2, ArrowUp, ArrowDown, Save, Loader2, Play, ChevronLeft,
@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import {
   getTemplate, v2UpdateTemplate, v2PreviewTemplate, v2RunTemplate,
-  v2GetAudit, adminUpdateTemplate,
+  v2GetAudit, v2CloneTemplate, adminUpdateTemplate,
   STEP_TYPE_META, StepType, StepSpec, Template,
 } from "@/lib/templates-api";
 import { getUser } from "@/lib/auth";
@@ -48,6 +48,10 @@ export default function TemplateEditorPage() {
   const [auditOpen, setAuditOpen] = useState(false);
   const [auditHistory, setAuditHistory] = useState<any[]>([]);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  // [Bug1 修复] 用 React state 替代 window.__selStep 反模式
+  // - 进入编辑器默认选中 steps[0]（让中栏不再是空白占位文）
+  // - 选中状态用 setState 触发重渲染，与 tpl 保持一致
+  const [selectedStepIdx, setSelectedStepIdx] = useState<number | null>(null);
 
   // 加载模板 + 当前用户
   useEffect(() => {
@@ -60,6 +64,10 @@ export default function TemplateEditorPage() {
           return;
         }
         setTpl(t);
+        // [Bug1 修复] 默认选中第一个 step，避免中栏空白
+        if (t.steps && t.steps.length > 0) {
+          setSelectedStepIdx(0);
+        }
         const u = getUser();
         setCurrentUser(u);
       } catch (e: any) {
@@ -70,7 +78,7 @@ export default function TemplateEditorPage() {
     })();
   }, [templateId]);
 
-  // 自动预览（debounce）
+  // [Bug1 修复] triggerPreview 必须先定义，下面的 useEffect 依赖它
   const triggerPreview = useCallback(async (cur: Template) => {
     if (!cur) return;
     setPreviewLoading(true);
@@ -85,7 +93,18 @@ export default function TemplateEditorPage() {
     }
   }, []);
 
-  // 编辑时自动预览
+  // [Bug1 修复] 进入编辑器就自动跑一次预览（不再等 dirty 触发）
+  // - 原因：之前 `if (!dirty) return` 导致首次进入右栏永远是空白
+  // - 加一个 initialPreviewRanRef 防止依赖 tpl 变化时反复触发
+  const initialPreviewRanRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!tpl) return;
+    if (initialPreviewRanRef.current === tpl.id) return;
+    initialPreviewRanRef.current = tpl.id;
+    triggerPreview(tpl);
+  }, [tpl, triggerPreview]);
+
+  // 编辑时自动预览（debounce，dirty=true 才触发）
   useEffect(() => {
     if (!tpl || !dirty) return;
     const handle = setTimeout(() => triggerPreview(tpl), 600);
@@ -144,8 +163,38 @@ export default function TemplateEditorPage() {
     try {
       // admin 可改 preset_*；业务用户只能改自己的 user scope
       const isAdmin = currentUser?.role === "admin" || currentUser?.role === "analyst";
-      const fn = (tpl.scope === "system" || tpl.scope === "market" || isAdmin)
-        ? adminUpdateTemplate : v2UpdateTemplate;
+      const isPreset = tpl.id.startsWith("preset_");
+      const isSystemScope = tpl.scope === "system" || tpl.scope === "market";
+      const needAdmin = isPreset || isSystemScope;
+
+      // [Bug2 修复] 业务用户尝试编辑 system preset / role_default 时给出明确提示
+      // - 之前直接 alert `保存失败: 权限不足` 让用户摸不着头脑
+      // - 现在的策略：
+      //   1) 业务用户编辑 system preset：提示"无法直接修改，请先克隆到我的模板"（不做静默 403）
+      //   2) 业务用户编辑 market 模板：同上，提示克隆
+      //   3) admin/analyst：照常走 admin 端点
+      if (needAdmin && !isAdmin) {
+        const confirmClone = window.confirm(
+          `当前模板是「${isPreset ? "系统预设" : "市场模板"}」，业务用户无法直接修改。\n\n` +
+          `点击"确定"将自动克隆一份到"我的模板"并跳转到新模板继续编辑。`
+        );
+        if (confirmClone) {
+          // 调用 clone API（会自动跳到新模板的编辑器）
+          const cloned = await v2CloneTemplate({
+            source_template_id: tpl.id,
+            target_scope: "user",
+            new_name: `${tpl.name} (我的副本)`,
+          });
+          // 跳到克隆后的新模板编辑器
+          router.push(`/templates/editor/${cloned.template.id}`);
+          return;
+        }
+        // 用户取消，不保存
+        return;
+      }
+
+      // 走到这里说明是合法的保存请求
+      const fn = needAdmin ? adminUpdateTemplate : v2UpdateTemplate;
       await fn(tpl.id, {
         name: tpl.name,
         description: tpl.description,
@@ -204,7 +253,8 @@ export default function TemplateEditorPage() {
     );
   }
 
-  const selectedStepIdx = (typeof window !== "undefined" && (window as any).__selStep) ?? null;
+  // [Bug1 修复] selectedStepIdx 已改为 React state（见组件顶部 useState）
+  // 原反模式 `const selectedStepIdx = (window as any).__selStep ?? null` 已被移除
   const activeStep = selectedStepIdx !== null ? tpl.steps[selectedStepIdx] : null;
 
   return (
@@ -280,7 +330,7 @@ export default function TemplateEditorPage() {
                 return (
                   <div
                     key={s.step_id}
-                    onClick={() => { (window as any).__selStep = i; }}
+                    onClick={() => setSelectedStepIdx(i)}
                     className={`group flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-all hover:bg-purple-50 ${
                       selectedStepIdx === i ? "border-purple-300 bg-purple-50" : "border-gray-200"
                     }`}

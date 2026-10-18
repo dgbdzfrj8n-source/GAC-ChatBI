@@ -414,10 +414,17 @@ class AttributionTemplateV2(BaseModel):
             if s.step_type == "strategy_recommend" and not s.depends_on:
                 raise ValueError(f"strategy_recommend step '{s.step_id}' 必须 depends_on 一个 step")
         # 5. yoy_compare / period_compare 必须指定 compare_period
+        # [Bug4 防御式改进] 保留校验，但提供更友好的错误信息 + 推荐默认值
         for s in self.steps:
             if s.step_type in ("yoy_compare", "period_compare") and not s.compare_period:
+                # 智能推荐默认值（避免业务用户被技术错误劝退）
+                suggestion = (
+                    "'2025-Q3' 或 '2024-Q3'" if s.step_type == "yoy_compare"
+                    else "'month' / 'quarter' / '2025-Q3'"
+                )
                 raise ValueError(
-                    f"step '{s.step_id}' 是 {s.step_type}，必须指定 compare_period（如 '2025-Q3'）"
+                    f"step '{s.step_id}' ({s.step_type}) 缺少 compare_period。"
+                    f"推荐填 {suggestion}。"
                 )
         # 6. template-level metric_key 也需在白名单
         if self.metric_key:
