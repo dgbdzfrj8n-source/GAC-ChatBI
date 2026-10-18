@@ -101,6 +101,22 @@ sop_analyzer = SopAnalyzer()
 from services.audit_log import ensure_audit_tables
 ensure_audit_tables()
 
+# === [Sprint 14] 模板中心：启动期确保表存在 + seed 5 个默认模板 ===
+try:
+    from services.sop.template_db import TemplateDB
+    from services.sop.seed_templates import seed as _seed_templates
+    from config import get_settings as _get_settings
+    _settings = _get_settings()
+    _tc_db = TemplateDB(_settings.DATABASE_PATH)
+    _tc_db.ensure_tables()  # 幂等：CREATE TABLE IF NOT EXISTS
+    _seed_templates()       # 幂等：内部检查 code 已存在则 skip
+    print(f"  ✅ [template-center] DB ready: {_settings.DATABASE_PATH}")
+except Exception as _e:
+    print(f"  ⚠ [template-center] init failed: {_e}")
+    import traceback
+    traceback.print_exc()
+# === [Sprint 14 END] ===
+
 # [Sprint 11] 注册归因模板中心 v3 路由
 from api.template_center.templates import router as tc_templates_router
 from api.template_center.template_runs import router as tc_runs_router

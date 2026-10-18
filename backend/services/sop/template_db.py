@@ -44,6 +44,35 @@ class TemplateDB:
         return duckdb.connect(self.db_path, read_only=False)
 
     # =====================================================================
+    # [Sprint 14] 启动期确保表存在（幂等）
+    # =====================================================================
+    def ensure_tables(self) -> None:
+        """执行 schema.sql 中 attribution_* 4 张表的 CREATE IF NOT EXISTS"""
+        import os as _os
+        schema_path = _os.path.join(
+            _os.path.dirname(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))),
+            "data", "schema.sql",
+        )
+        if not _os.path.exists(schema_path):
+            print(f"  ⚠ schema.sql not found: {schema_path}")
+            return
+        with open(schema_path, "r", encoding="utf-8") as f:
+            sql = f.read()
+        # 只执行 attribution_* 相关语句
+        keep = []
+        for stmt in sql.split(";"):
+            s = stmt.strip()
+            if s.upper().startswith("CREATE TABLE ATTRIBUTION_") \
+                    or s.upper().startswith("CREATE INDEX"):
+                keep.append(s)
+        with self._conn() as con:
+            for s in keep:
+                try:
+                    con.execute(s)
+                except Exception as e:
+                    print(f"  ⚠ ensure_tables 跳过: {e}")
+
+    # =====================================================================
     # 模板定义（attribution_template）
     # =====================================================================
     def create_template(

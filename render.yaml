@@ -30,6 +30,9 @@ services:
       # 不要把密钥硬编码到 yaml 里。
       - key: FRONTEND_URL
         value: https://gac-chat-bi.onrender.com
+      # === [Sprint 14] Dev 鉴权旁路：未登录请求默认走 admin（仅 demo 用）===
+      - key: AUTH_DEV_BYPASS
+        value: "true"
 
   # ============ 前端：Next.js 静态导出（output: 'export'）============
   # 因为 next.config.mjs 里已经设置了 output: 'export'，

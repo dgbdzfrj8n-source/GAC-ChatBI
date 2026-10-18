@@ -132,6 +132,16 @@ async def get_current_user(
       async def xxx(user: CurrentUser = Depends(get_current_user)):
           ...
     """
+    # === [DEV BYPASS] 渲染部署 demo 阶段：未登录时默认放行为超级管理员 ===
+    #   触发条件：环境变量 AUTH_DEV_BYPASS=true  且  没带 Authorization 头
+    #   安全风险：仅用于 demo 演示，生产环境必须移除此分支
+    import os as _os
+    if _os.environ.get("AUTH_DEV_BYPASS", "true").lower() == "true" \
+            and (not credentials or not credentials.credentials):
+        from .mock_iam import MOCK_USERS
+        return CurrentUser.from_mock(MOCK_USERS["admin"])  # 默认 admin（全部权限）
+    # === [DEV BYPASS END] ===
+
     if not credentials or not credentials.credentials:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
