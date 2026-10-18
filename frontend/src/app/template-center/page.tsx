@@ -133,7 +133,7 @@ export default function TemplateCenterPage() {
             {items.map((t) => (
               <Link
                 key={t.template_id}
-                href={`/template-center/${t.template_id}`}
+                href={`/template-center/detail?id=${t.template_id}`}
                 className={`block bg-white rounded-lg border ${
                   t.is_archived
                     ? "border-slate-200 opacity-60"

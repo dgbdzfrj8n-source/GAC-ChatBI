@@ -21,7 +21,6 @@ import ChatMessage from "@/components/ChatMessage";
 import SqlDrawer from "@/components/SqlDrawer";
 import BadCaseModal from "@/components/BadCaseModal";
 import SopResultModal from "@/components/SopResultModal";
-import SopTemplateModal from "@/components/SopTemplateModal";
 import DimensionPicker from "@/components/DimensionPicker";
 import { streamChat } from "@/lib/sse";
 
@@ -115,8 +114,7 @@ export default function ChatPage() {
   const [sopLoading, setSopLoading] = useState(false);
   // ⭐ P0: 归因维度选择器状态
   const [showDimPicker, setShowDimPicker] = useState(false);
-  // ⭐ Sprint D: SOP 模板选择器
-  const [showSopTemplateModal, setShowSopTemplateModal] = useState(false);
+  // ⭐ Sprint D: SOP 模板选择器入口已迁移到 /template-center，v3 不再使用 Modal
   const [pendingBrand, setPendingBrand] = useState<string>("");
   const [pendingYm, setPendingYm] = useState<string>("");
   const [copied, setCopied] = useState(false);
@@ -743,15 +741,14 @@ export default function ChatPage() {
               快速归因
             </button>
 
-            <button
-              onClick={() => setShowSopTemplateModal(true)}
-              data-tour="sop-template-button"
+            <a
+              href="/template-center"
               className="flex items-center gap-1 px-3 py-1.5 rounded-lg hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200 transition-colors border border-gray-200 text-purple-600"
-              title="Sprint D: 完整 SOP 步骤化归因报告"
+              title="v3: 归因模板中心"
             >
               <Layers className="w-3.5 h-3.5" />
-              SOP 模板
-            </button>
+              模板中心
+            </a>
 
             <a
               href="/dashboard"
@@ -847,16 +844,6 @@ export default function ChatPage() {
           onCancel={() => setShowDimPicker(false)}
           currentRole={currentUser?.role || "executive"}
           currentUser={currentUser?.username || "admin"}
-        />
-      )}
-
-      {/* ⭐ Sprint D: SOP 模板选择器 */}
-      {showSopTemplateModal && (
-        <SopTemplateModal
-          onClose={() => setShowSopTemplateModal(false)}
-          onRun={(templateId) => {
-            router.push(`/templates/run/${templateId}`);
-          }}
         />
       )}
     </div>

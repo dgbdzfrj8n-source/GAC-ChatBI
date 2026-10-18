@@ -1,7 +1,5 @@
-"""
-归因模板中心 v3 - 前端 API 客户端
-所有方法返回 Promise，错误抛出由调用方处理
-"""
+// 归因模板中心 v3 - 前端 API 客户端
+// 所有方法返回 Promise，错误抛出由调用方处理
 import type {
   Template,
   TemplateVersion,
@@ -11,7 +9,7 @@ import type {
   TemplateCategory,
   RunStatus,
   StepStatus,
-} from "./types";
+} from "./template-center-types";
 
 // 后端基地址（前端构建时通过 NEXT_PUBLIC_API_BASE 注入；默认同源）
 const API_BASE =

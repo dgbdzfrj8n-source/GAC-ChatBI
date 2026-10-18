@@ -1,7 +1,11 @@
 "use client";
 
+// ⚠️ 此页用 useSearchParams 读取 ?id=xxx，避开 next 动态路由 [id]
+//   next 14.2 + output:export 严格检查 generateStaticParams，
+//   静态导出 + 客户端 useParams 在 build 阶段会失败。
+
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   getTemplate,
@@ -23,10 +27,21 @@ import {
   STEP_TYPE_LABEL,
 } from "@/lib/template-center-types";
 import StepView from "@/components/template-center/StepView";
+import { Suspense } from "react";
 import { Play, History, ArrowLeft, Trash2, GitBranch, FileEdit } from "lucide-react";
 
-export default function TemplateDetailPage() {
-  const { id } = useParams<{ id: string }>();
+export default function TemplateDetailPageWrapper() {
+  // useSearchParams 必须包在 Suspense 内（next 14 build 静态导出强制要求）
+  return (
+    <Suspense fallback={<div className="p-8 text-slate-500">加载中…</div>}>
+      <TemplateDetailPage />
+    </Suspense>
+  );
+}
+
+function TemplateDetailPage() {
+  const sp = useSearchParams();
+  const id = sp.get("id") || "";
   const router = useRouter();
   const [tpl, setTpl] = useState<Template | null>(null);
   const [version, setVersion] = useState<TemplateVersion | null>(null);
