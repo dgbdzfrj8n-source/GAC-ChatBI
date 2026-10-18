@@ -157,7 +157,13 @@ export default function TemplateEditorPage() {
     setDirty(true);
   };
 
-  const handleSave = async () => {
+  const handleSave = async (opts?: { silent?: boolean }) => {
+    // [兼容] 按钮 onClick={handleSave} 会把 MouseEvent 作为 opts 传进来
+    // - MouseEvent 没有 .silent 字段，所以这种调用会走"非静默"分支（弹 alert）
+    // - 只有 handleRun 显式传 { silent: true } 才会走静默分支
+    if (opts && typeof (opts as any).preventDefault === "function") {
+      opts = undefined;
+    }
     if (!tpl) return;
     setSaving(true);
     try {
@@ -173,7 +179,12 @@ export default function TemplateEditorPage() {
       //   1) 业务用户编辑 system preset：提示"无法直接修改，请先克隆到我的模板"（不做静默 403）
       //   2) 业务用户编辑 market 模板：同上，提示克隆
       //   3) admin/analyst：照常走 admin 端点
+      //   4) silent=true（运行前自动保存）：不弹 confirm，直接抛错
       if (needAdmin && !isAdmin) {
+        if (opts?.silent) {
+          // 静默模式：业务用户不能直接保存 system preset，抛错让上层处理
+          throw new Error("业务用户无法直接修改系统预设，请先克隆到我的模板");
+        }
         const confirmClone = window.confirm(
           `当前模板是「${isPreset ? "系统预设" : "市场模板"}」，业务用户无法直接修改。\n\n` +
           `点击"确定"将自动克隆一份到"我的模板"并跳转到新模板继续编辑。`
@@ -212,6 +223,18 @@ export default function TemplateEditorPage() {
   const handleRun = async () => {
     if (!tpl) return;
     try {
+      // [Bug5 修复] dirty=true 时先静默保存当前编辑内容
+      // - 原因：v2RunTemplate 跑的是 DB 里的版本，前端 dirty 的 steps 不会生效
+      // - dirty=false 时直接跑（没改东西，没必要保存）
+      // - 静默保存：不弹 alert 干扰用户，失败则中断运行
+      if (dirty) {
+        try {
+          await handleSave({ silent: true });
+        } catch (saveErr: any) {
+          // 保存失败（例如无权限）→ 阻止运行，让用户看到保存错误
+          throw new Error(`运行前保存失败: ${saveErr.message}`);
+        }
+      }
       await v2RunTemplate(tpl.id, {});
       router.push(`/templates/run/${tpl.id}`);
     } catch (e: any) {
@@ -298,7 +321,7 @@ export default function TemplateEditorPage() {
             历史
           </button>
           <button
-            onClick={handleSave}
+            onClick={() => handleSave()}
             disabled={saving || !dirty}
             className="flex items-center gap-1 px-3 py-1.5 text-sm bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50"
           >
