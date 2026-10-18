@@ -11,10 +11,10 @@ import type {
   StepStatus,
 } from "./template-center-types";
 
-// 后端基地址（前端构建时通过 NEXT_PUBLIC_API_BASE 注入；默认同源）
+// 后端基地址（前端构建时通过 NEXT_PUBLIC_API_URL 注入；默认同源）
 const API_BASE =
   (typeof window !== "undefined" && (window as any).__API_BASE__) ||
-  process.env.NEXT_PUBLIC_API_BASE ||
+  process.env.NEXT_PUBLIC_API_URL ||   // ✅ 改名：BASE → URL（与其他 15 个文件一致）
   "";
 
 export interface ListTemplatesParams {
